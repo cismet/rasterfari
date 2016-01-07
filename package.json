@@ -11,7 +11,9 @@
   "author": "thorsten",
   "contributors": [],
   "dependencies": {
-    "gdal": "^0.8.0"
+    "async": "file:node_modules/async",
+    "clustered-node": "file:node_modules/clustered-node",
+    "restify": "file:node_modules/restify"
   },
   "scripts": {
     "start": "node server.js"
