@@ -1,0 +1,19 @@
+{
+  "name": "RastaFari",
+  "version": "1.0.0",
+  "keywords": [
+    "util",
+    "functional",
+    "server",
+    "client",
+    "browser"
+  ],
+  "author": "thorsten",
+  "contributors": [],
+  "dependencies": {
+    "gdal": "^0.8.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}
