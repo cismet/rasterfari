@@ -4,6 +4,8 @@
     "tmpFolder": "./tmp/",
     "keepFilesForDebugging": true,
     "customExtensions":"./custom.js",
-    "speechComments": true
+    "speechComments": true,
+    "interpolation":"average",
+    "//interpolation_alternatives": "near,average,bilinear,cubic,cubicspline,lanczos" 
 }
 
