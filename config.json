@@ -1,0 +1,9 @@
+{
+    "workers": 20,
+    "docFolder": "./docs/",
+    "tmpFolder": "./tmp/",
+    "keepFilesForDebugging": true,
+    "customExtensions":"./custom.js",
+    "speechComments": true
+}
+
