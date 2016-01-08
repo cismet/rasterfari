@@ -21,23 +21,24 @@ if (extConf.customExtensions !== undefined) {
 var defaults = {
     "port": 8081,
     "workers": 10,
-    "docFolder": "./exampleDocs/",
     "tmpFolder": "./tmp/",
     "keepFilesForDebugging": false,
     "speechComments": false,
     "sourceSRS": "EPSG:25832",
-    "nodata_color": "249 249 249"
+    "nodata_color": "249 249 249",
+    "interpolation":"average"
 };
 
 var conf = {
     "port": extConf.port || defaults.port,
     "workers": extConf.workers || defaults.workers,
-    "docFolder": extConf.docFolder || defaults.docFolder,
     "tmpFolder": extConf.tmpFolder || defaults.tmpFolder,
     "keepFilesForDebugging": extConf.keepFilesForDebugging || defaults.keepFilesForDebugging,
     "speechComments": extConf.speechComments || defaults.speechComments,
     "sourceSRS": extConf.sourceSRS || defaults.sourceSRS,
-    "nodata_color": extConf.nodata_color || defaults.nodata_color
+    "nodata_color": extConf.nodata_color || defaults.nodata_color,    
+    "interpolation": extConf.interpolation || defaults.interpolation
+
 
 };
 
@@ -84,8 +85,6 @@ function respond(req, res, next) {
     });
 }
 
-
-
 function getDocsFromLayers(layers) {
     var docs = layers.split(",");
     for (var i = 0, l = docs.length; i < l; i++) {
@@ -95,7 +94,7 @@ function getDocsFromLayers(layers) {
     return docs;
 }
 
-
+//either the LAYERS variable contains the the path to the images (seperated by ,) or it comtains a identifier that a custom function can handle
 function getDocPathFromLayerPart(layerPart) {
     if (customExtensions !== undefined && typeof customExtensions.customConvertLayerPartToDoc === 'function') {
         return customExtensions.customConvertLayerPartToDoc(layerPart);
@@ -103,7 +102,6 @@ function getDocPathFromLayerPart(layerPart) {
         return layerPart;
     }
 }
-
 
 function getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height) {
     var tasks = [];
@@ -126,7 +124,7 @@ function getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height
     }
     var convertCmd = "convert ";
     if (docs.length > 1) {
-        convertCmd += convertPart + conf.tmpFolder + "all.parts.resized" + nonce + ".tif && convert " + conf.tmpFolder + "all.parts.resized" + nonce + ".tif " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
+        convertCmd += convertPart + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
     } else {
         convertCmd += conf.tmpFolder + "*" + nonce + ".tif " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
     }
@@ -135,20 +133,13 @@ function getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height
 
 function createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, width, height) {
     return function (callback) {
-        console.log("jetzt:" + doc);
         if (conf.speechComments) {
             execAsync("say go");
         }
         var cmd = "gdalwarp " +
                 "-srcnodata '"+conf.nodata_color+"' " +
                 "-dstalpha " +
-                // "-r near " +
-                "-r average " +
-                // "-r bilinear " +
-                //"-r cubic " +
-                // "-r cubicspline " +
-                //"-r lanczos " +
-                //"-r mode " +
+                "-r "+conf.interpolation +" " +
                 "-overwrite " +
                 "-s_srs " + conf.sourceSRS + " " +
                 "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
