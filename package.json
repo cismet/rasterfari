@@ -1,20 +1,20 @@
 {
-  "name": "RastaFari",
-  "version": "1.0.0",
+  "name": "rasterfari",
+  "version": "0.0.1",
   "keywords": [
-    "util",
-    "functional",
+    "raster",
+    "documents",
     "server",
-    "client",
-    "browser"
+    "wms",
+    "ogc"
   ],
-  "description": "it is like a webserver for your rasterdocuments, but it understands the OGC WMS standard (a kind of)",
+  "description": "it is like a webserver for your georeferenced rasterdocuments, but it understands the OGC WMS standard (a kind of)",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/helllth/rasterfari.git"
   },
-  "author": "thorsten",
+  "author": "helllth",
   "contributors": [],
   "dependencies": {
     "async": "^1.5.2",
