@@ -8,6 +8,12 @@
     "client",
     "browser"
   ],
+  "description": "it is like a webserver for your rasterdocuments, but it understands the OGC WMS standard (a kind of)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/helllth/rasterfari.git"
+  },
   "author": "thorsten",
   "contributors": [],
   "dependencies": {
