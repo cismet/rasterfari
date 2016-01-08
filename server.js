@@ -26,7 +26,7 @@ var defaults = {
     "speechComments": false,
     "sourceSRS": "EPSG:25832",
     "nodata_color": "249 249 249",
-    "interpolation":"average"
+    "interpolation": "average"
 };
 
 var conf = {
@@ -36,7 +36,7 @@ var conf = {
     "keepFilesForDebugging": extConf.keepFilesForDebugging || defaults.keepFilesForDebugging,
     "speechComments": extConf.speechComments || defaults.speechComments,
     "sourceSRS": extConf.sourceSRS || defaults.sourceSRS,
-    "nodata_color": extConf.nodata_color || defaults.nodata_color,    
+    "nodata_color": extConf.nodata_color || defaults.nodata_color,
     "interpolation": extConf.interpolation || defaults.interpolation
 
 
@@ -62,26 +62,31 @@ function respond(req, res, next) {
     var result = getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height);
     var tasks = result[0];
     var convertCmd = result[1];
-
-    console.log(tasks);
-
-
-    async.parallel(tasks, function () {
-        //at the end
-        if (conf.speechComments) {
-            execSync("say convert");
+    async.parallel(tasks, function (err, results) {
+        if (!err) {
+            //at the end
+            if (conf.speechComments) {
+                execSync("say convert");
+            }
+            execSync(convertCmd);
+            var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
+            res.writeHead(200, {'Content-Type': 'image/png'});
+            res.end(img, 'binary');
+            if (conf.speechComments) {
+                execSync("say done");
+            }
+            if (!conf.keepFilesForDebugging) {
+                execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
+            }
+            return next();
+        } else {
+            if (conf.speechComments) {
+                execSync("say   error");
+            }
+            //console.log(err.message, 'text');
+            //res.end(err.message, 'text');
+            return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: "+ err.message));
         }
-        execSync(convertCmd);
-        var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
-        res.writeHead(200, {'Content-Type': 'image/png'});
-        res.end(img, 'binary');
-        if (conf.speechComments) {
-            execSync("say done");
-        }
-        if (!conf.keepFilesForDebugging) {
-            execSync("rm " + conf.tmpFolder + "*" + nonce + "*")
-        }
-        return next();
     });
 }
 
@@ -115,7 +120,6 @@ function getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height
         var originalDoc = docs[i];
         var path = originalDoc.split('/');
         var doc = path[path.length - 1];
-        console.log(doc);
         tasks.push(createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, width, height));
         convertPart += conf.tmpFolder + doc + ".part.resized" + nonce + ".tif ";
         if (i > 0) {
@@ -137,9 +141,9 @@ function createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, wi
             execAsync("say go");
         }
         var cmd = "gdalwarp " +
-                "-srcnodata '"+conf.nodata_color+"' " +
+                "-srcnodata '" + conf.nodata_color + "' " +
                 "-dstalpha " +
-                "-r "+conf.interpolation +" " +
+                "-r " + conf.interpolation + " " +
                 "-overwrite " +
                 "-s_srs " + conf.sourceSRS + " " +
                 "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
@@ -147,9 +151,13 @@ function createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, wi
                 "-ts " + width + " " + height + " " +
                 originalDoc + " " +
                 conf.tmpFolder + doc + ".part.resized" + nonce + ".tif ";
-        console.log(cmd);
         execAsync(cmd, null, function (error, stdout, stderr) {
-            callback(null, true);
+            if (error) {
+                callback(new Error("failed getting something:" + error.message));
+                // we should return here
+            } else {
+                callback(null, true);
+            }
         });
     };
 }
