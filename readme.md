@@ -32,8 +32,26 @@ npm install
 ```
 
 ## configure
+Just edit the config.json
 
-**to be done**
+```json
+{
+    "workers": 20,
+    "tmpFolder": "./tmp/",
+    "keepFilesForDebugging": false,
+    "customExtensions":"./custom.js",
+    "speechComments": false,
+    "interpolation":"average",
+    "//interpolation_alternatives": "near,average,bilinear,cubic,cubicspline,lanczos" 
+}
+```
+* workers: numbers of parallel instances waiting for requests
+* tmpFolder: the folder where rasterfari stores its inbetweens
+* keepFilesForDebugging: keep the inbetweens
+* customExtensions: the file with custom js extensions
+* speechComments: if turned on, and a `say`command is available on your system (Mac OS) rasterfari will talk about its work
+* interpolation: selects the interpolation algorithm used by gdal 
+
 
 ## start
 ```bash
