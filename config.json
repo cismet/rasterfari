@@ -1,10 +1,9 @@
 {
     "workers": 20,
-    "docFolder": "./docs/",
     "tmpFolder": "./tmp/",
-    "keepFilesForDebugging": true,
+    "keepFilesForDebugging": false,
     "customExtensions":"./custom.js",
-    "speechComments": true,
+    "speechComments": false,
     "interpolation":"average",
     "//interpolation_alternatives": "near,average,bilinear,cubic,cubicspline,lanczos" 
 }

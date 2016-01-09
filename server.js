@@ -1,9 +1,12 @@
-//console.log("                 _             __            _ ");
-//console.log("   _ __ __ _ ___| |_ ___ _ __ / _| __ _ _ __(_)");
-//console.log("  | '__/ _` / __| __/ _ \ '__| |_ / _` | '__| |");
-//console.log("  | | | (_| \__ \ ||  __/ |  |  _| (_| | |  | |");
-//console.log("  |_|  \__,_|___/\__\___|_|  |_|  \__,_|_|  |_|");
+var title="";
+title += "               _             __            _"+"\n";
+title += " _ __ __ _ ___| |_ ___ _ __ \/ _| __ _ _ __(_)"+"\n";
+title += "| '__\/ _` \/ __| __\/ _ \ '__| |_ \/ _` | '__| |"+"\n";
+title += "| | | (_| \__ \ ||  __\/ |  |  _| (_| | |  | |"+"\n";
+title += "|_|  \__,_|___\/\__\___|_|  |_|  \__,_|_|  |_|"+"\n";
+                                           
 
+                                           
 var restify = require('restify');
 var execSync = require('child_process').execSync;
 var execAsync = require('child_process').exec;
@@ -17,6 +20,8 @@ if (extConf.customExtensions !== undefined) {
 } else {
     //console.log("no custom extensions loaded");
 }
+
+
 
 var defaults = {
     "port": 8081,
@@ -42,6 +47,12 @@ var conf = {
 
 };
 
+function log(message, nonce) {
+    fs.appendFile( conf.tmpFolder + "processing_of_" + nonce + ".log",message+'\n');
+    
+}
+
+
 function respond(req, res, next) {
     var layers = req.params.LAYERS;
     var width = req.params.WIDTH;
@@ -55,25 +66,27 @@ function respond(req, res, next) {
     var srs = req.params.SRS;
 
     var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
-        
-    execAsync('echo "' + req.headers.host+req.url + '" >>' + conf.tmpFolder + "processing_of_" + nonce + ".log", null, function (error, stdout, stderr) {
-        callback(null, true);
-    });
+ 
+   log(title+"\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
     var docs = getDocsFromLayers(layers);
 
+    log("### will process " + docs.length +" files ("+docs+")\n", nonce);
     //Asynchronous
     var result = getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height);
     var tasks = result[0];
     var convertCmd = result[1];
+    
+    log("### cut out the right parts:",nonce);
+
     async.parallel(tasks, function (err, results) {
         if (!err) {
             //at the end
             if (conf.speechComments) {
                 execSync("say convert");
             }
-            execAsync("echo  " + convertCmd + ">>" + conf.tmpFolder + "processing_of_" + nonce + ".log", null, function (error, stdout, stderr) {
-                callback(null, true);
-            });
+            
+            log("\n### merge/convert the image to the resulting png:\n"+convertCmd,nonce);
+
             execSync(convertCmd);
             var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
             res.writeHead(200, {'Content-Type': 'image/png'});
@@ -81,14 +94,19 @@ function respond(req, res, next) {
             if (conf.speechComments) {
                 execSync("say done");
             }
+            log("\n\n### Everything seems to be 200 ok",nonce);
             if (!conf.keepFilesForDebugging) {
                 execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
             }
             return next();
         } else {
             if (conf.speechComments) {
-                execSync("say   error");
+                execSync("say error");
             }
+             log("\n\n### There seems to be at least one error :-/\n"+err.message,nonce);
+             if (!conf.keepFilesForDebugging) {
+                execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* && export GLOBIGNORE=");
+            } 
             return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
         }
     });
@@ -115,11 +133,6 @@ function getDocPathFromLayerPart(layerPart) {
 
 function getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height) {
     var tasks = [];
-//    tasks.push(function (callback) {
-//        execAsync("touch " + conf.tmpFolder + "processing_of_" + nonce + ".log", null, function (error, stdout, stderr) {
-//            callback(null, true);
-//        });
-//    });
     var convertPart = "";
     for (var i = 0; i < docs.length; i++) {
         var originalDoc = docs[i];
@@ -153,13 +166,10 @@ function createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, wi
                 "-ts " + width + " " + height + " " +
                 originalDoc + " " +
                 conf.tmpFolder + doc + ".part.resized" + nonce + ".tif ";
-        execAsync("echo  " + cmd + " >>" + conf.tmpFolder + "processing_of_" + nonce + ".log", null, function (error, stdout, stderr) {
-            callback(null, true);
-        });
+        log(cmd, nonce);
         execAsync(cmd, null, function (error, stdout, stderr) {
             if (error) {
                 callback(new Error("failed getting something:" + error.message));
-                // we should return here
             } else {
                 callback(null, true);
             }
