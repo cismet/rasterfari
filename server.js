@@ -55,7 +55,10 @@ function respond(req, res, next) {
     var srs = req.params.SRS;
 
     var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
-
+        
+    execAsync('echo "' + req.headers.host+req.url + '" >>' + conf.tmpFolder + "processing_of_" + nonce + ".log", null, function (error, stdout, stderr) {
+        callback(null, true);
+    });
     var docs = getDocsFromLayers(layers);
 
     //Asynchronous
@@ -68,6 +71,9 @@ function respond(req, res, next) {
             if (conf.speechComments) {
                 execSync("say convert");
             }
+            execAsync("echo  " + convertCmd + ">>" + conf.tmpFolder + "processing_of_" + nonce + ".log", null, function (error, stdout, stderr) {
+                callback(null, true);
+            });
             execSync(convertCmd);
             var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
             res.writeHead(200, {'Content-Type': 'image/png'});
@@ -83,9 +89,7 @@ function respond(req, res, next) {
             if (conf.speechComments) {
                 execSync("say   error");
             }
-            //console.log(err.message, 'text');
-            //res.end(err.message, 'text');
-            return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: "+ err.message));
+            return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
         }
     });
 }
@@ -108,13 +112,14 @@ function getDocPathFromLayerPart(layerPart) {
     }
 }
 
+
 function getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height) {
     var tasks = [];
-    tasks.push(function (callback) {
-        execAsync("touch " + conf.tmpFolder + "processing_of_" + nonce + "in_progress", null, function (error, stdout, stderr) {
-            callback(null, true);
-        });
-    });
+//    tasks.push(function (callback) {
+//        execAsync("touch " + conf.tmpFolder + "processing_of_" + nonce + ".log", null, function (error, stdout, stderr) {
+//            callback(null, true);
+//        });
+//    });
     var convertPart = "";
     for (var i = 0; i < docs.length; i++) {
         var originalDoc = docs[i];
@@ -122,13 +127,10 @@ function getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height
         var doc = path[path.length - 1];
         tasks.push(createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, width, height));
         convertPart += conf.tmpFolder + doc + ".part.resized" + nonce + ".tif ";
-        if (i > 0) {
-            convertPart += "  -composite ";
-        }
     }
     var convertCmd = "convert ";
     if (docs.length > 1) {
-        convertCmd += convertPart + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
+        convertCmd += convertPart + " -background none  -compose DstOver -layers merge " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
     } else {
         convertCmd += conf.tmpFolder + "*" + nonce + ".tif " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
     }
@@ -151,6 +153,9 @@ function createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, wi
                 "-ts " + width + " " + height + " " +
                 originalDoc + " " +
                 conf.tmpFolder + doc + ".part.resized" + nonce + ".tif ";
+        execAsync("echo  " + cmd + " >>" + conf.tmpFolder + "processing_of_" + nonce + ".log", null, function (error, stdout, stderr) {
+            callback(null, true);
+        });
         execAsync(cmd, null, function (error, stdout, stderr) {
             if (error) {
                 callback(new Error("failed getting something:" + error.message));
