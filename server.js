@@ -21,8 +21,6 @@ if (extConf.customExtensions !== undefined) {
     //console.log("no custom extensions loaded");
 }
 
-
-
 var defaults = {
     "port": 8081,
     "workers": 10,
@@ -106,7 +104,7 @@ function respond(req, res, next) {
             }
             log("\n\n### There seems to be at least one error :-/\n" + err.message, nonce);
             if (!conf.keepFilesForDebugging) {
-                execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* && export GLOBIGNORE=");
+                execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
             }
             return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
         }
