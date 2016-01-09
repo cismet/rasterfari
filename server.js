@@ -45,11 +45,14 @@ var conf = {
     "interpolation": extConf.interpolation || defaults.interpolation
 };
 
-function log(message, nonce) {
-    fs.appendFile(conf.tmpFolder + "processing_of_" + nonce + ".log", message + '\n');
-
+if (!fs.existsSync(conf.tmpFolder)){
+    fs.mkdirSync(conf.tmpFolder);
 }
 
+
+function log(message, nonce) {
+    fs.appendFile(conf.tmpFolder + "processing_of_" + nonce + ".log", message + '\n');
+}
 
 function respond(req, res, next) {
     var layers = req.params.LAYERS;
