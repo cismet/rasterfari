@@ -1,5 +1,5 @@
 # RasterFari
-![1452108578_rasta](https://cloud.githubusercontent.com/assets/837211/12175511/fbe583fa-b562-11e5-9775-b59badbe5e1d.png)
+![1452108578_rasta](https://cloud.githubusercontent.com/assets/837211/12175511/fbe583fa-b562-11e5-9775-b59badbe5e1d.png)[^icon]
 
 Once in a while there is a need for an OGC WMS compliant service that serves a folder (or structure) of georeferenced documents (GeoTIFF as a first step).
 
@@ -57,4 +57,23 @@ Just edit the config.json
 ```bash
 npm start
 ```
+
+## examples[^exampledocs]
+### a single document with a proper bounding box to show the whole dosument
+[http://127.0.0.1:8081/geoDocWMS?REQUEST=GetMap&SERVICE=WMS&SRS=EPSG:25832&BBOX=373649.02089266,5678438.990322266,374123.7498055822,5678702.54671875&WIDTH=870&HEIGHT=483&LAYERS=exampleDocs/B106_DBA.tif](http://127.0.0.1:8081/geoDocWMS?REQUEST=GetMap&SERVICE=WMS&SRS=EPSG:25832&BBOX=373649.02089266,5678438.990322266,374123.7498055822,5678702.54671875&WIDTH=870&HEIGHT=483&LAYERS=exampleDocs/B106_DBA.tif)
+
+![geodocwms-1](https://cloud.githubusercontent.com/assets/837211/12216378/6a957b0c-b6df-11e5-9731-cd51eb241db3.png)
+
+
+### three documents with the same bounding box show only parts of the added documents
+[http://127.0.0.1:8081/geoDocWMS?REQUEST=GetMap&SERVICE=WMS&SRS=EPSG:25832&BBOX=373649.02089266,5678438.990322266,374123.7498055822,5678702.54671875&WIDTH=870&HEIGHT=483&LAYERS=exampleDocs/B106_DBA.tif,exampleDocs/B911_DBA_Teil1.tif,exampleDocs/B911_DBA_Teil2.tif](http://127.0.0.1:8081/geoDocWMS?REQUEST=GetMap&SERVICE=WMS&SRS=EPSG:25832&BBOX=373649.02089266,5678438.990322266,374123.7498055822,5678702.54671875&WIDTH=870&HEIGHT=483&LAYERS=exampleDocs/B106_DBA.tif,exampleDocs/B911_DBA_Teil1.tif,exampleDocs/B911_DBA_Teil2.tif)
+
+![geodocwms-2](https://cloud.githubusercontent.com/assets/837211/12216385/825b020c-b6df-11e5-8088-83ba85750448.png)
+
+
+
+[^icon]: Rastaman icon from http://www.kameleon.pics/free-icons-pack.html 
+
+[^exampledocs]: The example docs are from the Stadtverwaltung Wuppertal. Thanks so much.
+
 
