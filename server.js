@@ -28,6 +28,7 @@ var defaults = {
     "tmpFolder": "./tmp/",
     "keepFilesForDebugging": false,
     "speechComments": false,
+    "tolerantMode": false,
     "sourceSRS": "EPSG:25832",
     "nodata_color": "249 249 249",
     "interpolation": "average"
@@ -41,11 +42,12 @@ var conf = {
     "keepFilesForDebugging": extConf.keepFilesForDebugging || defaults.keepFilesForDebugging,
     "speechComments": extConf.speechComments || defaults.speechComments,
     "sourceSRS": extConf.sourceSRS || defaults.sourceSRS,
+    "tolerantMode": extConf.tolerantMode || defaults.tolerantMode,
     "nodata_color": extConf.nodata_color || defaults.nodata_color,
     "interpolation": extConf.interpolation || defaults.interpolation
 };
 
-if (!fs.existsSync(conf.tmpFolder)){
+if (!fs.existsSync(conf.tmpFolder)) {
     fs.mkdirSync(conf.tmpFolder);
 }
 
@@ -55,10 +57,11 @@ function log(message, nonce) {
 }
 
 function respond(req, res, next) {
-    var layers = req.params.LAYERS||req.params.layers||req.params.Layers;
-    var width = req.params.WIDTH||req.params.width||req.params.Width;
-    var height = req.params.HEIGHT||req.params.height||req.params.Height;;
-    var bbox = req.params.BBOX||req.params.bbox||req.params.Bbox;
+    var layers = req.params.LAYERS || req.params.layers || req.params.Layers;
+    var width = req.params.WIDTH || req.params.width || req.params.Width;
+    var height = req.params.HEIGHT || req.params.height || req.params.Height;
+    ;
+    var bbox = req.params.BBOX || req.params.bbox || req.params.Bbox;
     var sbbox = bbox.split(",");
     var minx = sbbox[0].trim();
     var miny = sbbox[1].trim();
@@ -73,9 +76,7 @@ function respond(req, res, next) {
 
     log("### will process " + docs.length + " files (" + docs + ")\n", nonce);
     //Asynchronous
-    var result = getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height);
-    var tasks = result[0];
-    var convertCmd = result[1];
+    var tasks = getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height);
 
     log("### cut out the right parts:", nonce);
 
@@ -86,20 +87,32 @@ function respond(req, res, next) {
                 execSync("say convert");
             }
 
+            var convertCmd = "convert " + conf.tmpFolder + "*part.resized" + nonce + "* -background none  -compose DstOver -layers merge " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
             log("\n### merge/convert the image to the resulting png:\n" + convertCmd, nonce);
 
-            execSync(convertCmd);
-            var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
-            res.writeHead(200, {'Content-Type': 'image/png'});
-            res.end(img, 'binary');
-            if (conf.speechComments) {
-                execSync("say done");
-            }
-            log("\n\n### Everything seems to be 200 ok", nonce);
-            if (!conf.keepFilesForDebugging) {
-                execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
-            }
-            return next();
+            execAsync(convertCmd, function (error, stdout, stderr) {
+                if (error) {
+                    log("\n\n### There seems to be at least one (conversion) error :-/\n" + err.message, nonce);
+                    if (!conf.keepFilesForDebugging) {
+                        execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+                    }
+                    return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
+                } else {
+                    var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
+                    res.writeHead(200, {'Content-Type': 'image/png'});
+                    res.end(img, 'binary');
+                    if (conf.speechComments) {
+                        execSync("say done");
+                    }
+                    log("\n\n### Everything seems to be 200 ok", nonce);
+                    if (!conf.keepFilesForDebugging) {
+                        execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
+                    }
+                    return next();
+                }
+            });
+
+
         } else {
             if (conf.speechComments) {
                 execSync("say error");
@@ -134,21 +147,14 @@ function getDocPathFromLayerPart(layerPart) {
 
 function getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height) {
     var tasks = [];
-    var convertPart = "";
+
     for (var i = 0; i < docs.length; i++) {
         var originalDoc = docs[i];
         var path = originalDoc.split('/');
         var doc = path[path.length - 1];
         tasks.push(createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, width, height));
-        convertPart += conf.tmpFolder + doc + ".part.resized" + nonce + ".tif ";
     }
-    var convertCmd = "convert ";
-    if (docs.length > 1) {
-        convertCmd += convertPart + " -background none  -compose DstOver -layers merge " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
-    } else {
-        convertCmd += conf.tmpFolder + "*" + nonce + ".tif " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
-    }
-    return [tasks, convertCmd];
+    return tasks;
 }
 
 function createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, width, height) {
@@ -170,7 +176,12 @@ function createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, wi
         log(cmd, nonce);
         execAsync(cmd, null, function (error, stdout, stderr) {
             if (error) {
-                callback(new Error("failed getting something:" + error.message));
+                if (!conf.tolerantMode) {
+                    callback(new Error("failed getting something:" + error.message));
+                } else {
+                    log("\n\n### There seems to be an error :-/ Will ignore because of the tolerantMode\n" + error.message, nonce);
+                    callback(null, true);
+                }
             } else {
                 callback(null, true);
             }

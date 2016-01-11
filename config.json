@@ -2,7 +2,7 @@
     "workers": 20,
     "tmpFolder": "./tmp/",
     "keepFilesForDebugging": false,
-    "speechComments": false,
+    "tolerantMode": true,
     "interpolation":"average",
     "customExtensions":"./custom.js",
     "//interpolation_alternatives": "near,average,bilinear,cubic,cubicspline,lanczos"
