@@ -188,5 +188,6 @@ server.head('/geoDocWMS/', respond);
 
 server.pre(restify.pre.userAgentConnection());
 
-clustered_node.listen({port: conf.port, workers: conf.workers}, server);
+//change localhost to real adress. otherwise you will get connection refused errors
+clustered_node.listen({port: conf.port, host: "localhost", workers: conf.workers}, server);
 
