@@ -53,10 +53,10 @@ function log(message, nonce) {
 }
 
 function respond(req, res, next) {
-    var layers = req.params.LAYERS;
-    var width = req.params.WIDTH;
-    var height = req.params.HEIGHT;
-    var bbox = req.params.BBOX;
+    var layers = req.params.LAYERS||req.params.layers||req.params.Layers;
+    var width = req.params.WIDTH||req.params.width||req.params.Width;
+    var height = req.params.HEIGHT||req.params.height||req.params.Height;;
+    var bbox = req.params.BBOX||req.params.bbox||req.params.Bbox;
     var sbbox = bbox.split(",");
     var minx = sbbox[0].trim();
     var miny = sbbox[1].trim();
