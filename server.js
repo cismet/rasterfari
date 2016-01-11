@@ -23,6 +23,7 @@ if (extConf.customExtensions !== undefined) {
 
 var defaults = {
     "port": 8081,
+    "host": "localhost",
     "workers": 10,
     "tmpFolder": "./tmp/",
     "keepFilesForDebugging": false,
@@ -34,6 +35,7 @@ var defaults = {
 
 var conf = {
     "port": extConf.port || defaults.port,
+    "host": extConf.host || defaults.host,
     "workers": extConf.workers || defaults.workers,
     "tmpFolder": extConf.tmpFolder || defaults.tmpFolder,
     "keepFilesForDebugging": extConf.keepFilesForDebugging || defaults.keepFilesForDebugging,
@@ -188,6 +190,5 @@ server.head('/geoDocWMS/', respond);
 
 server.pre(restify.pre.userAgentConnection());
 
-//change localhost to real adress. otherwise you will get connection refused errors
-clustered_node.listen({port: conf.port, host: "localhost", workers: conf.workers}, server);
+clustered_node.listen({port: conf.port, host: conf.host, workers: conf.workers}, server);
 
