@@ -1,0 +1,16 @@
+version: '2'
+
+services:
+
+ rasterfari-wms:
+  container_name: rasterfari-wms
+  image: cismet/rasterfari-wms:1.0-SNAPSHOT
+  network_mode: bridge
+  ports:
+   - 8081:8081
+  volumes:
+   - ./tmp:/app/tmp
+   - ./docs:/app/docs
+   - ./config.json:/app/config.json
+   - ./custom.js:/app/custom.js
+  restart: always
