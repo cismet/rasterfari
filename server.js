@@ -1,4 +1,7 @@
-var title = "";
+import restify from 'restify';
+
+
+let title = "";
 title += "               _             __            _" + "\n";
 title += " _ __ __ _ ___| |_ ___ _ __ \/ _| __ _ _ __(_)" + "\n";
 title += "| '__\/ _` \/ __| __\/ _ \ '__| |_ \/ _` | '__| |" + "\n";
@@ -7,13 +10,13 @@ title += "|_|  \__,_|___\/\__\___|_|  |_|  \__,_|_|  |_|" + "\n";
 
 
 
-var restify = require('restify');
+//var restify = require('restify');
 var execSync = require('child_process').execSync;
 var execAsync = require('child_process').exec;
 var async = require('async');
 var extConf = require('./config.json');
+
 var fs = require('fs');
-var clustered_node = require("clustered-node");
 if (extConf.customExtensions !== undefined) {
     var customExtensions = require(extConf.customExtensions);
     // console.log("custom extensions loaded from " + configuration.custom);
@@ -21,10 +24,11 @@ if (extConf.customExtensions !== undefined) {
     //console.log("no custom extensions loaded");
 }
 
-var defaults = {
+
+let defaults = {
     "port": 8081,
-    "host": "localhost",
-    "workers": 10,
+    "host": "0.0.0.0",
+    "workers": 1,
     "tmpFolder": "./tmp/",
     "keepFilesForDebugging": false,
     "speechComments": false,
@@ -51,23 +55,26 @@ if (!fs.existsSync(conf.tmpFolder)) {
     fs.mkdirSync(conf.tmpFolder);
 }
 
-
 function log(message, nonce) {
-    fs.appendFile(conf.tmpFolder + "processing_of_" + nonce + ".log", message + '\n');
+    fs.appendFile(conf.tmpFolder + "processing_of_" + nonce + ".log", message + '\n',(error)=>{
+        if (error) {
+            console.log("Problem during log write");
+        }
+    });
+    console.log(nonce+":"+message);
 }
 
 function respond(req, res, next) {
-    var layers = req.params.LAYERS || req.params.layers || req.params.Layers;
-    var width = req.params.WIDTH || req.params.width || req.params.Width;
-    var height = req.params.HEIGHT || req.params.height || req.params.Height;
-    ;
-    var bbox = req.params.BBOX || req.params.bbox || req.params.Bbox;
+    var layers = req.query.LAYERS || req.query.layers || req.query.Layers;
+    var width = req.query.WIDTH || req.query.width || req.query.Width;
+    var height = req.query.HEIGHT || req.query.height || req.query.Height;
+    var bbox = req.query.BBOX || req.query.bbox || req.query.Bbox;
     var sbbox = bbox.split(",");
     var minx = sbbox[0].trim();
     var miny = sbbox[1].trim();
     var maxx = sbbox[2].trim();
     var maxy = sbbox[3].trim();
-    var srs = req.params.SRS;
+    var srs = req.query.SRS||req.query.srs;
 
     var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
 
@@ -87,16 +94,17 @@ function respond(req, res, next) {
                 execSync("say convert");
             }
 
-            var convertCmd = "convert " + conf.tmpFolder + "*part.resized" + nonce + "* -background none  -compose DstOver -layers merge " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
+            //var convertCmd = "convert " + conf.tmpFolder + "*part.resized" + nonce + "* -background none  -compose DstOver -layers merge " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
+            var convertCmd = "gdal_translate -q --config GDAL_PAM_ENABLED NO -of png " + conf.tmpFolder + "all.parts.resized" + nonce + ".tif " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
             log("\n### merge/convert the image to the resulting png:\n" + convertCmd, nonce);
 
             execAsync(convertCmd, function (error, stdout, stderr) {
                 if (error) {
-                    log("\n\n### There seems to be at least one (conversion) error :-/\n" + err.message, nonce);
+                    log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
                     if (!conf.keepFilesForDebugging) {
                         execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
                     }
-                    return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
+                    return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
                 } else {
                     var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
                     res.writeHead(200, {'Content-Type': 'image/png'});
@@ -147,17 +155,19 @@ function getDocPathFromLayerPart(layerPart) {
 
 function getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height) {
     var tasks = [];
-
+    let doclist="";
+    console.log(docs);
     for (var i = 0; i < docs.length; i++) {
         var originalDoc = docs[i];
         var path = originalDoc.split('/');
-        var doc = path[path.length - 1];
-        tasks.push(createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, width, height));
+        doclist=doclist + originalDoc+ " ";
     }
+    console.log(doclist);
+    tasks.push(createWarpTask(nonce, originalDoc, doclist, srs, minx, miny, maxx, maxy, width, height));
     return tasks;
 }
 
-function createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, width, height) {
+function createWarpTask(nonce, originalDoc, doclist, srs, minx, miny, maxx, maxy, width, height) {
     return function (callback) {
         if (conf.speechComments) {
             execAsync("say go");
@@ -171,8 +181,8 @@ function createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, wi
                 "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
                 "-t_srs " + srs + " " +
                 "-ts " + width + " " + height + " " +
-                originalDoc + " " +
-                conf.tmpFolder + doc + ".part.resized" + nonce + ".tif ";
+                doclist + " " +
+                conf.tmpFolder + "all.parts.resized" + nonce + ".tif ";
         log(cmd, nonce);
         execAsync(cmd, null, function (error, stdout, stderr) {
             if (error) {
@@ -191,15 +201,15 @@ function createWarpTask(nonce, originalDoc, doc, srs, minx, miny, maxx, maxy, wi
 
 
 var server = restify.createServer();
-server.use(restify.acceptParser(server.acceptable));
-server.use(restify.queryParser());
-server.use(restify.bodyParser());
+server.use(restify.plugins.acceptParser(server.acceptable));
+server.use(restify.plugins.queryParser());
+server.use(restify.plugins.bodyParser());
 
 server.get('/geoDocWMS/', respond);
 server.get('/rasterfariWMS/', respond);
 server.head('/geoDocWMS/', respond);
 
 server.pre(restify.pre.userAgentConnection());
+console.log("Listening on port:"+conf.port);
 
-clustered_node.listen({port: conf.port, host: conf.host, workers: conf.workers}, server);
-
+server.listen(conf.port, conf.host)

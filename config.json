@@ -1,7 +1,7 @@
 {
     "workers": 20,
     "tmpFolder": "./tmp/",
-    "keepFilesForDebugging": false,
+    "keepFilesForDebugging": true,
     "tolerantMode": true,
     "interpolation":"average",
     "customExtensions":"./custom.js",
