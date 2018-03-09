@@ -61,10 +61,11 @@ function log(message, nonce) {
             console.log("Problem during log write");
         }
     });
-    console.log(nonce+":"+message);
+    console.log(message);
 }
 
 function respond(req, res, next) {
+
     var layers = req.query.LAYERS || req.query.layers || req.query.Layers;
     var width = req.query.WIDTH || req.query.width || req.query.Width;
     var height = req.query.HEIGHT || req.query.height || req.query.Height;
@@ -82,23 +83,26 @@ function respond(req, res, next) {
     var docs = getDocsFromLayers(layers);
 
     log("### will process " + docs.length + " files (" + docs + ")\n", nonce);
-    //Asynchronous
-    var tasks = getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height);
 
-    log("### cut out the right parts:", nonce);
 
-    async.parallel(tasks, function (err, results) {
-        if (!err) {
-            //at the end
-            if (conf.speechComments) {
-                execSync("say convert");
+    let vrt=getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height);
+    let trans=getTranslateCommand(nonce, width, height,srs, minx, miny, maxx, maxy);
+
+    console.log("\n\n\n");
+    console.log(":::"+vrt); 
+    console.log("\n");
+    console.log(":::"+trans);
+    console.log("\n\n\n");
+    
+    execAsync(vrt, function (error, stdout, stderr) {
+        if (error) {
+            log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
+            if (!conf.keepFilesForDebugging) {
+                execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
             }
-
-            //var convertCmd = "convert " + conf.tmpFolder + "*part.resized" + nonce + "* -background none  -compose DstOver -layers merge " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
-            var convertCmd = "gdal_translate -q --config GDAL_PAM_ENABLED NO -of png " + conf.tmpFolder + "all.parts.resized" + nonce + ".tif " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
-            log("\n### merge/convert the image to the resulting png:\n" + convertCmd, nonce);
-
-            execAsync(convertCmd, function (error, stdout, stderr) {
+            return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+        } else {
+            execAsync(trans, function (error, stdout, stderr) {
                 if (error) {
                     log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
                     if (!conf.keepFilesForDebugging) {
@@ -119,19 +123,57 @@ function respond(req, res, next) {
                     return next();
                 }
             });
-
-
-        } else {
-            if (conf.speechComments) {
-                execSync("say error");
-            }
-            log("\n\n### There seems to be at least one error :-/\n" + err.message, nonce);
-            if (!conf.keepFilesForDebugging) {
-                execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
-            }
-            return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
         }
     });
+
+
+
+
+    // async.parallel(tasks, function (err, results) {
+    //     if (!err) {
+    //         //at the end
+    //         if (conf.speechComments) {
+    //             execSync("say convert");
+    //         }
+
+    //         //var convertCmd = "convert " + conf.tmpFolder + "*part.resized" + nonce + "* -background none  -compose DstOver -layers merge " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
+    //         var convertCmd = "gdal_translate -q --config GDAL_PAM_ENABLED NO -of png " + conf.tmpFolder + "all.parts.resized" + nonce + ".tif " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
+    //         log("\n### merge/convert the image to the resulting png:\n" + convertCmd, nonce);
+
+    //         execAsync(convertCmd, function (error, stdout, stderr) {
+    //             if (error) {
+    //                 log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
+    //                 if (!conf.keepFilesForDebugging) {
+    //                     execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+    //                 }
+    //                 return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+    //             } else {
+    //                 var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
+    //                 res.writeHead(200, {'Content-Type': 'image/png'});
+    //                 res.end(img, 'binary');
+    //                 if (conf.speechComments) {
+    //                     execSync("say done");
+    //                 }
+    //                 log("\n\n### Everything seems to be 200 ok", nonce);
+    //                 if (!conf.keepFilesForDebugging) {
+    //                     execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
+    //                 }
+    //                 return next();
+    //             }
+    //         });
+
+
+    //     } else {
+    //         if (conf.speechComments) {
+    //             execSync("say error");
+    //         }
+    //         log("\n\n### There seems to be at least one error :-/\n" + err.message, nonce);
+    //         if (!conf.keepFilesForDebugging) {
+    //             execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+    //         }
+    //         return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
+    //     }
+    // });
 }
 
 function getDocsFromLayers(layers) {
@@ -152,20 +194,56 @@ function getDocPathFromLayerPart(layerPart) {
     }
 }
 
-
-function getCommandArray(docs, nonce, srs, minx, miny, maxx, maxy, width, height) {
-    var tasks = [];
+function getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height) {
     let doclist="";
-    console.log(docs);
     for (var i = 0; i < docs.length; i++) {
         var originalDoc = docs[i];
-        var path = originalDoc.split('/');
         doclist=doclist + originalDoc+ " ";
     }
-    console.log(doclist);
-    tasks.push(createWarpTask(nonce, originalDoc, doclist, srs, minx, miny, maxx, maxy, width, height));
-    return tasks;
+
+    if (conf.sourceSRS===srs){
+        return "gdalbuildvrt "+
+        "-srcnodata '" + conf.nodata_color + "' "+
+        "-r average -overwrite " + 
+        "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
+        conf.tmpFolder + "all.parts.resized" + nonce + ".vrt "+
+        doclist;     
+    }
+    else {
+         let cmd = 
+             "gdalwarp " +
+                "-srcnodata '" + conf.nodata_color + "' " +
+                "-dstalpha " +
+                "-r " + conf.interpolation + " " +
+                "-overwrite " +
+                "-s_srs " + conf.sourceSRS + " " +
+                "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
+                "-t_srs " + srs + " " +
+                "-ts " + width + " " + height + " " +
+                "-of GTiff " +
+                doclist + " "  +
+                conf.tmpFolder + "all.parts.resized" + nonce + ".tif ";
+        return cmd;
+    }
 }
+
+function getTranslateCommand(nonce, width, height,srs, minx, miny, maxx, maxy) {
+    
+    return  "gdal_translate "+
+            "-a_nodata '" + conf.nodata_color + "' "+ 
+            "-q " +
+            "-outsize " + width + " " + height + " " +
+            "--config GDAL_PAM_ENABLED NO "+
+            "-of png "+
+            conf.tmpFolder + "all.parts.resized" + nonce + ".* "+
+            conf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png "+
+            "&& convert -background none "+
+            conf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png "+
+            "PNG32:"+conf.tmpFolder + "all.parts.resized" + nonce + ".png ";
+}
+
+
+
 
 function createWarpTask(nonce, originalDoc, doclist, srs, minx, miny, maxx, maxy, width, height) {
     return function (callback) {
