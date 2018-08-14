@@ -2,7 +2,7 @@
 #   - builds the frontend app (Vue, React, Webpack, ...)
 
 # Use an official node image
-FROM geographica/gdal2:2.2.3
+FROM geographica/gdal2:2.3.1
 
 RUN apt-get update
 RUN apt-get install -y curl 
