@@ -62,6 +62,7 @@ RUN set -ex \
 
 
 RUN apt-get install -y vim
+RUN apt-get install -y imagemagick
 RUN npm install pm2 -g
 RUN npm install -g babel-cli
 
