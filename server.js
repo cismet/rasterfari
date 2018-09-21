@@ -253,26 +253,29 @@ function getTranslateCommand(layers, nonce, width, height, srs, minx, miny, maxx
             let imageWidth = imageSize.split("x")[0];
             let imageHeight = imageSize.split("x")[1];
             let imageRatio = imageWidth / imageHeight;        
+            console.log(imageWidth + "x" + imageHeight);
+
+            // the ratio of the image we are generating
+            let targetRatio = width / height;
 
             // the bounding box of the area we want to show
             let boundingboxX1 = minx;
             let boundingboxY1 = miny;
+
             let boundingboxX2 = maxx;
             let boundingboxY2 = maxy;
+    
             let boundingboxWidth = boundingboxX2 - boundingboxX1;
             let boundingboxHeight = boundingboxY2 - boundingboxY1;
             
-            // the ratio of the image we are generating
-            let targetRatio = width / height;
-
             // before doing anything, we extent the original image so that it
             // matches the ratio of the image we are generating        
             let extentWidth = imageWidth;
             let extentHeight = imageHeight;
-            if (imageRatio > targetRatio) {
-                extentHeight = Math.floor(imageWidth / targetRatio);
+            if (imageRatio > 1) {
+                extentHeight = Math.floor(extentHeight * imageRatio);
             } else {
-                extentWidth = Math.floor(imageHeight * targetRatio);
+                extentWidth = Math.floor(extentWidth / imageRatio);
             }
                         
             // croping the sides that are not part of the boundingbox
@@ -293,14 +296,14 @@ function getTranslateCommand(layers, nonce, width, height, srs, minx, miny, maxx
                 extentY = cropY;
             }
 
-            let extentTargetRatio = " -gravity Southwest -extent " + extentWidth + "x" + extentHeight;
-            let crop = " -gravity Southwest -crop " + cropWidth + "x" + cropHeight + (cropX < 0 ? cropX : "+" + cropX) + (cropY < 0 ? cropY : "+" + cropY);
+            let extentTargetRatio = " -gravity Center -extent " + extentWidth + "x" + extentHeight;
             let extent = " -extent " + cropWidth + "x" + cropHeight + (extentX < 0 ? extentX : "+" + extentX) + (extentY < 0 ? extentY : "+" + extentY);
+            let crop = " -gravity Southwest -crop " + cropWidth + "x" + cropHeight + (cropX < 0 ? cropX : "+" + cropX) + (cropY < 0 ? cropY : "+" + cropY);
             let resize = " -scale " + width + "x" + height + "!";
 
             let cmd = "convert " + inputImage + " -background none"
-            + extentTargetRatio  // 1) centered extent for matching target ratio
-            + crop               // 2) top-left crop for removing areas outside of the boundingbox
+            + extentTargetRatio  // 1) center oriented centered extent for matching target ratio
+            + crop               // 2) bottom-left oriented crop for removing areas outside of the boundingbox
             + extent             // 3) readding potential missing empty borders by extent
             + resize             // 4) resizing to target size (!enforcing both dimensions)
             + " " + outputImage;
