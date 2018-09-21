@@ -86,7 +86,7 @@ function respond(req, res, next) {
 
 
     let vrt=getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height);
-    let trans=getTranslateCommand(nonce, width, height,srs, minx, miny, maxx, maxy);
+    let trans=getTranslateCommand(layers, nonce, width, height,srs, minx, miny, maxx, maxy);
 
     console.log("\n\n\n");
     console.log(":::"+vrt); 
@@ -94,14 +94,14 @@ function respond(req, res, next) {
     console.log(":::"+trans);
     console.log("\n\n\n");
     
-    execAsync(vrt, function (error, stdout, stderr) {
+    /*execAsync(vrt, function (error, stdout, stderr) {
         if (error) {
             log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
             if (!conf.keepFilesForDebugging) {
                 execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
             }
             return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
-        } else {
+        } else {*/
             execAsync(trans, function (error, stdout, stderr) {
                 if (error) {
                     log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
@@ -122,9 +122,9 @@ function respond(req, res, next) {
                     }
                     return next();
                 }
-            });
+            });/*
         }
-    });
+    });*/
 
 
 
@@ -194,52 +194,132 @@ function getDocPathFromLayerPart(layerPart) {
     }
 }
 
-function getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height) {
+function getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy, width, height) {
     let doclist="";
     for (var i = 0; i < docs.length; i++) {
         var originalDoc = docs[i];
         doclist=doclist + originalDoc+ " ";
     }
 
-    if (conf.sourceSRS===srs){
-        return "gdalbuildvrt "+
-        "-srcnodata '" + conf.nodata_color + "' "+
-        "-r average -overwrite " + 
-        "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
-        conf.tmpFolder + "all.parts.resized" + nonce + ".vrt "+
-        doclist;     
-    }
-    else {
-         let cmd = 
-             "gdalwarp " +
-                "-srcnodata '" + conf.nodata_color + "' " +
-                "-dstalpha " +
-                "-r " + conf.interpolation + " " +
-                "-overwrite " +
-                "-s_srs " + conf.sourceSRS + " " +
-                "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
-                "-t_srs " + srs + " " +
-                "-ts " + width + " " + height + " " +
-                "-of GTiff " +
-                doclist + " "  +
-                conf.tmpFolder + "all.parts.resized" + nonce + ".tif ";
-        return cmd;
+    if (true) {
+        return "";
+    } else {
+        if (conf.sourceSRS===srs){
+            return "gdalbuildvrt "+
+            "-srcnodata '" + conf.nodata_color + "' "+
+            "-r average -overwrite " + 
+            "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
+            conf.tmpFolder + "all.parts.resized" + nonce + ".vrt "+
+            doclist;     
+        }
+        else {
+            let cmd = 
+                "gdalwarp " +
+                    "-srcnodata '" + conf.nodata_color + "' " +
+                    "-dstalpha " +
+                    "-r " + conf.interpolation + " " +
+                    "-overwrite " +
+                    "-s_srs " + conf.sourceSRS + " " +
+                    "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
+                    "-t_srs " + srs + " " +
+                    "-ts " + width + " " + height + " " +
+                    "-of GTiff " +
+                    doclist + " "  +
+                    conf.tmpFolder + "all.parts.resized" + nonce + ".tif ";
+            return cmd;
+        }
     }
 }
 
-function getTranslateCommand(nonce, width, height,srs, minx, miny, maxx, maxy) {
+function getTranslateCommand(layers, nonce, width, height, srs, minx, miny, maxx, maxy) {
+    let inputImage = layers;
+    let outputImage = "PNG32:"+conf.tmpFolder + "all.parts.resized" + nonce + ".png";
     
-    return  "gdal_translate "+
-            "-a_nodata '" + conf.nodata_color + "' "+ 
-            "-q " +
-            "-outsize " + width + " " + height + " " +
-            "--config GDAL_PAM_ENABLED NO "+
-            "-of png "+
-            conf.tmpFolder + "all.parts.resized" + nonce + ".* "+
-            conf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png "+
-            "&& convert -background none "+
-            conf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png "+
-            "PNG32:"+conf.tmpFolder + "all.parts.resized" + nonce + ".png ";
+    if (true) {        
+        
+        if (minx > 1 || miny > 1 || maxx < 0 || maxy < 0) {
+            // boundingbox is completly outside of the image
+            // we just have to return an empty image
+            let cmd = "convert"
+            + " -size " + width + "x" + height
+            + " xc:none"
+            + " " + outputImage;
+            return cmd;
+        } else {            
+            // calculating the resulting image
+
+            // the size and ratio of the original document
+            let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + layers));
+            let imageWidth = imageSize.split("x")[0];
+            let imageHeight = imageSize.split("x")[1];
+            let imageRatio = imageWidth / imageHeight;        
+
+            // the bounding box of the area we want to show
+            let boundingboxX1 = minx;
+            let boundingboxY1 = miny;
+            let boundingboxX2 = maxx;
+            let boundingboxY2 = maxy;
+            let boundingboxWidth = boundingboxX2 - boundingboxX1;
+            let boundingboxHeight = boundingboxY2 - boundingboxY1;
+            
+            // the ratio of the image we are generating
+            let targetRatio = width / height;
+
+            // before doing anything, we extent the original image so that it
+            // matches the ratio of the image we are generating        
+            let extentWidth = imageWidth;
+            let extentHeight = imageHeight;
+            if (imageRatio > targetRatio) {
+                extentHeight = Math.floor(imageWidth / targetRatio);
+            } else {
+                extentWidth = Math.floor(imageHeight * targetRatio);
+            }
+                        
+            // croping the sides that are not part of the boundingbox
+            let cropX = Math.floor(boundingboxX1 * (prescaleXNeeded ? prescaleWidth : extentWidth));
+            let cropY = Math.floor(boundingboxY1 * (prescaleYNeeded ? prescaleHeight : extentHeight));
+            let cropWidth = Math.floor(boundingboxWidth * (prescaleXNeeded ? prescaleWidth : extentWidth));
+            let cropHeight = Math.floor(boundingboxHeight * (prescaleYNeeded ? prescaleHeight : extentHeight));
+
+            // if the boundingbox is partialy outside of the original image,
+            // the result of the croped image is missing the outside areas.
+            // we need to add them back by doing an extent.
+            let extentX = 0;
+            let extentY = 0;
+            if (cropX < 0) {
+                extentX = cropX;
+            }
+            if (cropY < 0) {
+                extentY = cropY;
+            }
+
+            let extentTargetRatio = " -gravity center -extent " + extentWidth + "x" + extentHeight;
+            let crop = " -gravity Southwest -crop " + cropWidth + "x" + cropHeight + (cropX < 0 ? cropX : "+" + cropX) + (cropY < 0 ? cropY : "+" + cropY);
+            let extent = " -extent " + cropWidth + "x" + cropHeight + (extentX < 0 ? extentX : "+" + extentX) + (extentY < 0 ? extentY : "+" + extentY);
+            let resize = " -scale " + width + "x" + height + "!";
+
+            let cmd = "convert " + inputImage + " -background none"
+            + extentTargetRatio  // 1) centered extent for matching target ratio
+            + crop               // 2) top-left crop for removing areas outside of the boundingbox
+            + extent             // 3) readding potential missing empty borders by extent
+            + resize             // 4) resizing to target size (!enforcing both dimensions)
+            + " " + outputImage;
+            
+            return cmd;
+        }
+    } else {
+        return  "gdal_translate "+
+                "-a_nodata '" + conf.nodata_color + "' "+ 
+                "-q " +
+                "-outsize " + width + " " + height + " " +
+                "--config GDAL_PAM_ENABLED NO "+
+                "-of png "+
+                conf.tmpFolder + "all.parts.resized" + nonce + ".* "+
+                conf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png "+
+                "&& convert -background none "+
+                conf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png "+
+                outputImage;
+    }            
 }
 
 
