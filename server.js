@@ -276,10 +276,10 @@ function getTranslateCommand(layers, nonce, width, height, srs, minx, miny, maxx
             }
                         
             // croping the sides that are not part of the boundingbox
-            let cropX = Math.floor(boundingboxX1 * (prescaleXNeeded ? prescaleWidth : extentWidth));
-            let cropY = Math.floor(boundingboxY1 * (prescaleYNeeded ? prescaleHeight : extentHeight));
-            let cropWidth = Math.floor(boundingboxWidth * (prescaleXNeeded ? prescaleWidth : extentWidth));
-            let cropHeight = Math.floor(boundingboxHeight * (prescaleYNeeded ? prescaleHeight : extentHeight));
+            let cropX = Math.floor(boundingboxX1 * extentWidth);
+            let cropY = Math.floor(boundingboxY1 * extentHeight);
+            let cropWidth = Math.floor(boundingboxWidth * extentWidth);
+            let cropHeight = Math.floor(boundingboxHeight * extentHeight);
 
             // if the boundingbox is partialy outside of the original image,
             // the result of the croped image is missing the outside areas.
@@ -293,7 +293,7 @@ function getTranslateCommand(layers, nonce, width, height, srs, minx, miny, maxx
                 extentY = cropY;
             }
 
-            let extentTargetRatio = " -gravity center -extent " + extentWidth + "x" + extentHeight;
+            let extentTargetRatio = " -gravity Southwest -extent " + extentWidth + "x" + extentHeight;
             let crop = " -gravity Southwest -crop " + cropWidth + "x" + cropHeight + (cropX < 0 ? cropX : "+" + cropX) + (cropY < 0 ? cropY : "+" + cropY);
             let extent = " -extent " + cropWidth + "x" + cropHeight + (extentX < 0 ? extentX : "+" + extentX) + (extentY < 0 ? extentY : "+" + extentY);
             let resize = " -scale " + width + "x" + height + "!";
