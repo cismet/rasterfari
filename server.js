@@ -13,9 +13,10 @@ title += "|_|  \__,_|___\/\__\___|_|  |_|  \__,_|_|  |_|" + "\n";
 //var restify = require('restify');
 var execSync = require('child_process').execSync;
 var execAsync = require('child_process').exec;
-var async = require('async');
+//var async = require('async');
 var extConf = require('./config.json');
-var gm = require('gm').subClass({imageMagick: true});;
+var gm = require('gm').subClass({imageMagick: true});
+var fx = require('mkdir-recursive');
 
 var fs = require('fs');
 if (extConf.customExtensions !== undefined) {
@@ -66,7 +67,6 @@ function log(message, nonce) {
 }
 
 function respond(req, res, next) {
-
     var layers = req.query.LAYERS || req.query.layers || req.query.Layers;
     var width = req.query.WIDTH || req.query.width || req.query.Width;
     var height = req.query.HEIGHT || req.query.height || req.query.Height;
@@ -78,16 +78,45 @@ function respond(req, res, next) {
     var maxy = sbbox[3].trim();
     var srs = req.query.SRS||req.query.srs;
 
+    var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
+    log(title + "\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
+
+    if (/\[\d+\]$/.test(layers)) {
+        let imageName = layers.replace(/\[\d+\]$/, "");
+        let multipageDir = conf.tmpFolder + imageName;
+        if (!fs.existsSync(multipageDir)) {
+            fx.mkdir(multipageDir, (err) => {
+                let splitPagesCmd = "convert " + imageName + " " + multipageDir + "/%d.png";
+                execAsync(splitPagesCmd, () => {
+                    console.log(":::" + splitPagesCmd);
+                    main(res, nonce, layers, width, height, minx, miny, maxx, maxy, srs, next);
+                });
+            });        
+        } else {
+            main(res, nonce, layers, width, height, minx, miny, maxx, maxy, srs, next);
+        }
+    } else {
+        main(res, nonce, layers, width, height, minx, miny, maxx, maxy, srs, next);
+    }
+}
+
+function main(res, nonce, layers, width, height, minx, miny, maxx, maxy, srs, next) {
     if (srs === "testGM") {
-        let inputImage = layers;        
-        
-        gm(layers).size(function(err, imageSize) {
-            let imageWidth = imageSize.width;
-            let imageHeight = imageSize.height;
-        
-            let params = calculateMagickParams(imageWidth, imageHeight, parseFloat(minx), parseFloat(miny), parseFloat(maxx), parseFloat(maxy), parseInt(width), parseInt(height));
-    
-            gm(layers)
+        let inputImage = identifyMultipageImage(layers);
+
+        gm(inputImage).size(function(err, imageSize) {
+            let params = calculateMagickParams(
+                imageSize.width, 
+                imageSize.height, 
+                parseFloat(minx), 
+                parseFloat(miny), 
+                parseFloat(maxx), 
+                parseFloat(maxy), 
+                parseInt(width), 
+                parseInt(height)
+            );
+
+            gm(inputImage)
                 .background("none")
                 .gravity("Center").extent(params.extent.width, params.extent.height)
                 .gravity("SouthWest").crop(params.crop.width, params.crop.height, params.crop.x, params.crop.y)
@@ -102,56 +131,33 @@ function respond(req, res, next) {
                     stdout.pipe(res);
             });
         });
+    } else if (srs === "testIM") {
+        let inputImage = identifyMultipageImage(layers);
+        let outputImage = "PNG32:"+conf.tmpFolder + "all.parts.resized" + nonce + ".png";
+            
+        let trans = getTranslateCommand(inputImage, outputImage, width, height,srs, minx, miny, maxx, maxy);
+
+        console.log(":::"+trans);
+
+        execAsync(trans, transCallback(res, nonce, next));
     } else {
-
-        var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
-
-        log(title + "\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
         var docs = getDocsFromLayers(layers);
 
         log("### will process " + docs.length + " files (" + docs + ")\n", nonce);
+    
+        let vrt = getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height);
 
-
-        let vrt=getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height);
-        let trans=getTranslateCommand(layers, nonce, width, height,srs, minx, miny, maxx, maxy);
+        let inputImage = layers;
+        let outputImage = "PNG32:"+conf.tmpFolder + "all.parts.resized" + nonce + ".png";            
+        let trans = getTranslateCommand(inputImage, outputImage, width, height,srs, minx, miny, maxx, maxy);
 
         console.log("\n\n\n");
-        console.log(":::"+vrt); 
+        console.log(":::" + vrt); 
         console.log("\n");
-        console.log(":::"+trans);
+        console.log(":::" + trans);
         console.log("\n\n\n");
         
-        execAsync(vrt, function (error, stdout, stderr) {
-            if (error) {
-                log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-                if (!conf.keepFilesForDebugging) {
-                    execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
-                }
-                return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
-            } else {
-                execAsync(trans, function (error, stdout, stderr) {
-                    if (error) {
-                        log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-                        if (!conf.keepFilesForDebugging) {
-                            execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
-                        }
-                        return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
-                    } else {
-                        var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
-                        res.writeHead(200, {'Content-Type': 'image/png'});
-                        res.end(img, 'binary');
-                        if (conf.speechComments) {
-                            execSync("say done");
-                        }
-                        log("\n\n### Everything seems to be 200 ok", nonce);
-                        if (!conf.keepFilesForDebugging) {
-                            execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
-                        }
-                        return next();
-                    }
-                });
-            }        
-        });
+        execAsync(vrt, vrtCallback(res, nonce, trans, next));
     }
 
     // async.parallel(tasks, function (err, results) {
@@ -199,6 +205,57 @@ function respond(req, res, next) {
     //         return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
     //     }
     // });
+}
+
+function identifyMultipageImage(layers) {
+    if (layers.match(/\[\d+\]$/)) {
+        let imageName = layers.replace(/\[\d+\]$/, "");
+        let multipageDir = conf.tmpFolder + imageName;
+        let page = parseInt(String(layers.match(/\[\d+\]$/, "")).replace(/[\[\]]/, ""));
+    
+        let inputImage = multipageDir + "/" + page + ".png";
+        return inputImage;    
+    } else {
+        return layers;
+    }
+}
+
+function vrtCallback(res, nonce, trans, next) {
+    return function(error, stdout, stderr) {
+        if (error) {
+            log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
+            if (!conf.keepFilesForDebugging) {
+                execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+            }
+            return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+        } else {
+            execAsync(trans, transCallback(res, nonce, next));
+        }       
+    } 
+}
+
+function transCallback(res, nonce, next) {
+    return function(error, stdout, stderr) {
+        if (error) {
+            log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
+            if (!conf.keepFilesForDebugging) {
+                execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+            }
+            return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+        } else {
+            var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
+            res.writeHead(200, {'Content-Type': 'image/png'});
+            res.end(img, 'binary');
+            if (conf.speechComments) {
+                execSync("say done");
+            }
+            log("\n\n### Everything seems to be 200 ok", nonce);
+            if (!conf.keepFilesForDebugging) {
+                execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
+            }
+            return next();
+        }
+    }
 }
 
 function getDocsFromLayers(layers) {
@@ -314,10 +371,7 @@ function calculateMagickParams(imageWidth, imageHeight, minx, miny, maxx, maxy, 
         return magickParams;
 }
 
-function getTranslateCommand(layers, nonce, width, height, srs, minx, miny, maxx, maxy) {
-    let inputImage = layers;
-    let outputImage = "PNG32:"+conf.tmpFolder + "all.parts.resized" + nonce + ".png";
-    
+function getTranslateCommand(inputImage, outputImage, width, height, srs, minx, miny, maxx, maxy) {            
     if (srs === "testIM") {                
         if (minx > 1 || miny > 1 || maxx < 0 || maxy < 0) {
             // boundingbox is completly outside of the image
@@ -328,7 +382,7 @@ function getTranslateCommand(layers, nonce, width, height, srs, minx, miny, maxx
             + " " + outputImage;
             return cmd;
         } else {            
-            let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + layers));
+            let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + inputImage));
             let imageWidth = imageSize.split("x")[0];
             let imageHeight = imageSize.split("x")[1];
             let params = calculateMagickParams(imageWidth, imageHeight, minx, miny, maxx, maxy, width, height);
