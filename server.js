@@ -15,6 +15,7 @@ var execSync = require('child_process').execSync;
 var execAsync = require('child_process').exec;
 var async = require('async');
 var extConf = require('./config.json');
+var gm = require('gm').subClass({imageMagick: true});;
 
 var fs = require('fs');
 if (extConf.customExtensions !== undefined) {
@@ -77,57 +78,81 @@ function respond(req, res, next) {
     var maxy = sbbox[3].trim();
     var srs = req.query.SRS||req.query.srs;
 
-    var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
-
-    log(title + "\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
-    var docs = getDocsFromLayers(layers);
-
-    log("### will process " + docs.length + " files (" + docs + ")\n", nonce);
-
-
-    let vrt=getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height);
-    let trans=getTranslateCommand(layers, nonce, width, height,srs, minx, miny, maxx, maxy);
-
-    console.log("\n\n\n");
-    console.log(":::"+vrt); 
-    console.log("\n");
-    console.log(":::"+trans);
-    console.log("\n\n\n");
+    if (srs === "testGM") {
+        let inputImage = layers;        
+        
+        gm(layers).size(function(err, imageSize) {
+            let imageWidth = imageSize.width;
+            let imageHeight = imageSize.height;
+        
+            let params = calculateMagickParams(imageWidth, imageHeight, parseFloat(minx), parseFloat(miny), parseFloat(maxx), parseFloat(maxy), parseInt(width), parseInt(height));
     
-    /*execAsync(vrt, function (error, stdout, stderr) {
-        if (error) {
-            log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-            if (!conf.keepFilesForDebugging) {
-                execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
-            }
-            return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
-        } else {*/
-            execAsync(trans, function (error, stdout, stderr) {
-                if (error) {
-                    log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-                    if (!conf.keepFilesForDebugging) {
-                        execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+            gm(layers)
+                .background("none")
+                .gravity("Center").extent(params.extent.width, params.extent.height)
+                .gravity("SouthWest").crop(params.crop.width, params.crop.height, params.crop.x, params.crop.y)
+                .extent(params.extent2.width, params.extent2.height, String(params.extent2.x)+String(params.extent2.y))
+                .resize(params.resize.width, params.resize.height, "!")
+                .setFormat("PNG32")
+                .stream(function streamOut (err, stdout, stderr) {
+                    if (err) {
+                        return next(err);
                     }
-                    return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
-                } else {
-                    var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
-                    res.writeHead(200, {'Content-Type': 'image/png'});
-                    res.end(img, 'binary');
-                    if (conf.speechComments) {
-                        execSync("say done");
-                    }
-                    log("\n\n### Everything seems to be 200 ok", nonce);
-                    if (!conf.keepFilesForDebugging) {
-                        execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
-                    }
-                    return next();
+                    res.writeHead(200, {'Content-Type': 'image/png'}); 
+                    stdout.pipe(res);
+            });
+        });
+    } else {
+
+        var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
+
+        log(title + "\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
+        var docs = getDocsFromLayers(layers);
+
+        log("### will process " + docs.length + " files (" + docs + ")\n", nonce);
+
+
+        let vrt=getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height);
+        let trans=getTranslateCommand(layers, nonce, width, height,srs, minx, miny, maxx, maxy);
+
+        console.log("\n\n\n");
+        console.log(":::"+vrt); 
+        console.log("\n");
+        console.log(":::"+trans);
+        console.log("\n\n\n");
+        
+        execAsync(vrt, function (error, stdout, stderr) {
+            if (error) {
+                log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
+                if (!conf.keepFilesForDebugging) {
+                    execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
                 }
-            });/*
-        }
-    });*/
-
-
-
+                return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+            } else {
+                execAsync(trans, function (error, stdout, stderr) {
+                    if (error) {
+                        log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
+                        if (!conf.keepFilesForDebugging) {
+                            execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+                        }
+                        return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+                    } else {
+                        var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
+                        res.writeHead(200, {'Content-Type': 'image/png'});
+                        res.end(img, 'binary');
+                        if (conf.speechComments) {
+                            execSync("say done");
+                        }
+                        log("\n\n### Everything seems to be 200 ok", nonce);
+                        if (!conf.keepFilesForDebugging) {
+                            execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
+                        }
+                        return next();
+                    }
+                });
+            }        
+        });
+    }
 
     // async.parallel(tasks, function (err, results) {
     //     if (!err) {
@@ -201,8 +226,8 @@ function getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy, width, height) 
         doclist=doclist + originalDoc+ " ";
     }
 
-    if (true) {
-        return "";
+    if (srs === "testIM") {
+        return ":";
     } else {
         if (conf.sourceSRS===srs){
             return "gdalbuildvrt "+
@@ -231,81 +256,94 @@ function getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy, width, height) 
     }
 }
 
+function calculateMagickParams(imageWidth, imageHeight, minx, miny, maxx, maxy, width, height) {
+        // the size and ratio of the image we are generating
+        let targetSize = width + "x" + height;
+        let targetRatio = width / height;
+        
+        // calculating the resulting image
+
+        // the size and ratio of the original document            
+        let imageRatio = imageWidth / imageHeight;        
+
+        // the bounding box of the area we want to show
+        let boundingboxX1 = minx;
+        let boundingboxY1 = miny;
+        let boundingboxX2 = maxx;
+        let boundingboxY2 = maxy;
+        let boundingboxWidth = boundingboxX2 - boundingboxX1;
+        let boundingboxHeight = boundingboxY2 - boundingboxY1;
+        
+        // before doing anything, we extent the original image so that it
+        // matches the ratio of the image we are generating
+        let extentWidth = imageWidth;
+        let extentHeight = imageHeight;
+        if (imageRatio > targetRatio) {
+            extentHeight = Math.floor(imageWidth / targetRatio);
+        } else {
+            extentWidth = Math.floor(imageHeight * targetRatio);
+        }
+
+        
+        // now we are croping the sides that are not part of
+        // the boundingbox
+        let cropX = Math.floor(boundingboxX1 * extentWidth);
+        let cropY = Math.floor(boundingboxY1 * extentHeight);
+        let cropWidth = Math.floor(boundingboxWidth * extentWidth);
+        let cropHeight = Math.floor(boundingboxHeight * extentHeight);
+
+        // if the boundingbox is partialy outside of the original image,
+        // the result of the croped image is missing the outside areas.
+        // we need to add them back by doing an extent.
+        let extent2X = "+0";
+        let extent2Y = "+0";
+        if (cropX < 0) {
+            extent2X = cropX;
+        }
+        if (cropY < 0) {
+            extent2Y = cropY;
+        }
+
+        let magickParams = {
+            extent: { width: extentWidth, height: extentHeight },
+            crop: { x: cropX, y: cropY, width: cropWidth, height: cropHeight },
+            extent2: { x: extent2X, y: extent2Y, width: cropWidth, height: cropHeight },
+            resize: { width: width, height: height },
+        }
+
+        return magickParams;
+}
+
 function getTranslateCommand(layers, nonce, width, height, srs, minx, miny, maxx, maxy) {
     let inputImage = layers;
     let outputImage = "PNG32:"+conf.tmpFolder + "all.parts.resized" + nonce + ".png";
     
-    if (true) {        
-        
+    if (srs === "testIM") {                
         if (minx > 1 || miny > 1 || maxx < 0 || maxy < 0) {
             // boundingbox is completly outside of the image
             // we just have to return an empty image
             let cmd = "convert"
-            + " -size " + width + "x" + height
+            + " -size " + targetSize
             + " xc:none"
             + " " + outputImage;
             return cmd;
         } else {            
-            // calculating the resulting image
-
-            // the size and ratio of the original document
             let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + layers));
             let imageWidth = imageSize.split("x")[0];
             let imageHeight = imageSize.split("x")[1];
-            let imageRatio = imageWidth / imageHeight;        
-            console.log(imageWidth + "x" + imageHeight);
+            let params = calculateMagickParams(imageWidth, imageHeight, minx, miny, maxx, maxy, width, height);
 
-            // the ratio of the image we are generating
-            let targetRatio = width / height;
-
-            // the bounding box of the area we want to show
-            let boundingboxX1 = minx;
-            let boundingboxY1 = miny;
-
-            let boundingboxX2 = maxx;
-            let boundingboxY2 = maxy;
+            let extent = params.extent.width + "x" + params.extent.height;
+            let crop = params.crop.width + "x" + params.crop.height + "+" + params.crop.x + "+" + params.crop.y;
+            let extent2 = params.crop.width + "x" + params.crop.height + params.extent2.x + params.extent2.y;
+            let resize = width + "x" + height;
     
-            let boundingboxWidth = boundingboxX2 - boundingboxX1;
-            let boundingboxHeight = boundingboxY2 - boundingboxY1;
-            
-            // before doing anything, we extent the original image so that it
-            // matches the ratio of the image we are generating        
-            let extentWidth = imageWidth;
-            let extentHeight = imageHeight;
-            if (imageRatio > 1) {
-                extentHeight = Math.floor(extentHeight * imageRatio);
-            } else {
-                extentWidth = Math.floor(extentWidth / imageRatio);
-            }
-                        
-            // croping the sides that are not part of the boundingbox
-            let cropX = Math.floor(boundingboxX1 * extentWidth);
-            let cropY = Math.floor(boundingboxY1 * extentHeight);
-            let cropWidth = Math.floor(boundingboxWidth * extentWidth);
-            let cropHeight = Math.floor(boundingboxHeight * extentHeight);
-
-            // if the boundingbox is partialy outside of the original image,
-            // the result of the croped image is missing the outside areas.
-            // we need to add them back by doing an extent.
-            let extentX = 0;
-            let extentY = 0;
-            if (cropX < 0) {
-                extentX = cropX;
-            }
-            if (cropY < 0) {
-                extentY = cropY;
-            }
-
-            let extentTargetRatio = " -gravity Center -extent " + extentWidth + "x" + extentHeight;
-            let extent = " -extent " + cropWidth + "x" + cropHeight + (extentX < 0 ? extentX : "+" + extentX) + (extentY < 0 ? extentY : "+" + extentY);
-            let crop = " -gravity Southwest -crop " + cropWidth + "x" + cropHeight + (cropX < 0 ? cropX : "+" + cropX) + (cropY < 0 ? cropY : "+" + cropY);
-            let resize = " -scale " + width + "x" + height + "!";
-
-            let cmd = "convert " + inputImage + " -background none"
-            + extentTargetRatio  // 1) center oriented centered extent for matching target ratio
-            + crop               // 2) bottom-left oriented crop for removing areas outside of the boundingbox
-            + extent             // 3) readding potential missing empty borders by extent
-            + resize             // 4) resizing to target size (!enforcing both dimensions)
+            let cmd = "convert " + inputImage
+            + " -background none"                   // 1) transparent background
+            + " -gravity center -extent " + extent  // 2) centered extent for matching target ratio
+            + " -gravity Southwest -crop " + crop   // 3) top-left crop for removing areas outside of the boundingbox
+            + " -extent " + extent2                 // 4) readding potential missing empty borders by extent
+            + " -resize " + resize + "!"        // 5) resizing to target size (!enforcing both dimensions)
             + " " + outputImage;
             
             return cmd;
@@ -324,8 +362,6 @@ function getTranslateCommand(layers, nonce, width, height, srs, minx, miny, maxx
                 outputImage;
     }            
 }
-
-
 
 
 function createWarpTask(nonce, originalDoc, doclist, srs, minx, miny, maxx, maxy, width, height) {

@@ -18,6 +18,7 @@
   "contributors": [],
   "dependencies": {
     "async": "^2.6.0",
+    "gm": "^1.23.1",
     "restify": "^6.3.4"
   },
   "scripts": {

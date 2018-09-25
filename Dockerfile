@@ -60,12 +60,8 @@ RUN set -ex \
   && ln -s /opt/yarn/bin/yarn /usr/local/bin/yarnpkg \
   && rm yarn-v$YARN_VERSION.tar.gz.asc yarn-v$YARN_VERSION.tar.gz
 
-
-RUN apt-get install -y vim
-RUN apt-get install -y imagemagick
-RUN npm install pm2 -g
-RUN npm install -g babel-cli
-
+RUN apt-get install -y imagemagick vim
+RUN npm install -g babel-cli gm pm2
 
 # Reads args and use them to configure the build, setting
 # them as env vars
