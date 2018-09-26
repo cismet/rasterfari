@@ -434,10 +434,10 @@ function calculateMagickParams(imageWidth, imageHeight, minx, miny, maxx, maxy, 
         // matches the ratio of the image we are generating
         let extentWidth = imageWidth;
         let extentHeight = imageHeight;
-        if (imageRatio > targetRatio) {
-            extentHeight = Math.floor(imageWidth / targetRatio);
+        if (imageRatio > 1) {
+            extentHeight = Math.floor(imageHeight * imageRatio);
         } else {
-            extentWidth = Math.floor(imageHeight * targetRatio);
+            extentWidth = Math.floor(imageWidth / imageRatio);
         }
 
         
