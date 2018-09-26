@@ -17,6 +17,7 @@ var execAsync = require('child_process').exec;
 var extConf = require('./config.json');
 var gm = require('gm').subClass({imageMagick: true});
 var fx = require('mkdir-recursive');
+var sharp = require('sharp');
 
 var fs = require('fs');
 if (extConf.customExtensions !== undefined) {
@@ -68,14 +69,14 @@ function log(message, nonce) {
 
 function respond(req, res, next) {
     var layers = req.query.LAYERS || req.query.layers || req.query.Layers;
-    var width = req.query.WIDTH || req.query.width || req.query.Width;
-    var height = req.query.HEIGHT || req.query.height || req.query.Height;
+    var width = parseInt(req.query.WIDTH || req.query.width || req.query.Width);
+    var height = parseInt(req.query.HEIGHT || req.query.height || req.query.Height);
     var bbox = req.query.BBOX || req.query.bbox || req.query.Bbox;
     var sbbox = bbox.split(",");
-    var minx = sbbox[0].trim();
-    var miny = sbbox[1].trim();
-    var maxx = sbbox[2].trim();
-    var maxy = sbbox[3].trim();
+    var minx = parseFloat(sbbox[0].trim());
+    var miny = parseFloat(sbbox[1].trim());
+    var maxx = parseFloat(sbbox[2].trim());
+    var maxy = parseFloat(sbbox[3].trim());
     var srs = req.query.SRS||req.query.srs;
 
     var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
@@ -101,45 +102,15 @@ function respond(req, res, next) {
 }
 
 function main(res, nonce, layers, width, height, minx, miny, maxx, maxy, srs, next) {
-    if (srs === "testGM") {
+    if (srs === "testSharp") {
         let inputImage = identifyMultipageImage(layers);
-
-        gm(inputImage).size(function(err, imageSize) {
-            let params = calculateMagickParams(
-                imageSize.width, 
-                imageSize.height, 
-                parseFloat(minx), 
-                parseFloat(miny), 
-                parseFloat(maxx), 
-                parseFloat(maxy), 
-                parseInt(width), 
-                parseInt(height)
-            );
-
-            gm(inputImage)
-                .background("none")
-                .gravity("Center").extent(params.extent.width, params.extent.height)
-                .gravity("SouthWest").crop(params.crop.width, params.crop.height, params.crop.x, params.crop.y)
-                .extent(params.extent2.width, params.extent2.height, String(params.extent2.x)+String(params.extent2.y))
-                .resize(params.resize.width, params.resize.height, "!")
-                .setFormat("PNG32")
-                .stream(function streamOut (err, stdout, stderr) {
-                    if (err) {
-                        return next(err);
-                    }
-                    res.writeHead(200, {'Content-Type': 'image/png'}); 
-                    stdout.pipe(res);
-            });
-        });
+        withSharp(inputImage, width, height, minx, miny, maxx, maxy, next, res)
+    } else if (srs === "testGM") {
+        let inputImage = identifyMultipageImage(layers);
+        withGM(inputImage, width, height, minx, miny, maxx, maxy, next, res);
     } else if (srs === "testIM") {
         let inputImage = identifyMultipageImage(layers);
-        let outputImage = "PNG32:"+conf.tmpFolder + "all.parts.resized" + nonce + ".png";
-            
-        let trans = getTranslateCommand(inputImage, outputImage, width, height,srs, minx, miny, maxx, maxy);
-
-        console.log(":::"+trans);
-
-        execAsync(trans, transCallback(res, nonce, next));
+        withImagemagick(inputImage, nonce, width, height, minx, miny, maxx, maxy, next, res);
     } else {
         var docs = getDocsFromLayers(layers);
 
@@ -149,7 +120,7 @@ function main(res, nonce, layers, width, height, minx, miny, maxx, maxy, srs, ne
 
         let inputImage = layers;
         let outputImage = "PNG32:"+conf.tmpFolder + "all.parts.resized" + nonce + ".png";            
-        let trans = getTranslateCommand(inputImage, outputImage, width, height,srs, minx, miny, maxx, maxy);
+        let trans = getTranslateCommand(inputImage, nonce, outputImage, width, height,srs, minx, miny, maxx, maxy);
 
         console.log("\n\n\n");
         console.log(":::" + vrt); 
@@ -205,6 +176,139 @@ function main(res, nonce, layers, width, height, minx, miny, maxx, maxy, srs, ne
     //         return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
     //     }
     // });
+}
+
+
+function withSharp(inputImage, width, height, minx, miny, maxx, maxy, next, res) {
+    let transform = sharp(inputImage);
+
+    let funz = transform.metadata().then(
+        async(metadata) => {
+            let imageWidth = metadata.width;
+            let imageHeight = metadata.height;   
+
+            //console.log(metadata);
+            let params = calculateMagickParams(imageWidth, imageHeight, minx, miny, maxx, maxy, width, height);
+
+            console.log("extend");
+            console.log(params.extent);
+            let extend = { 
+                top: Math.ceil((params.extent.height - imageHeight) / 2), 
+                right: Math.ceil((params.extent.width - imageWidth) / 2),
+                bottom: Math.floor((params.extent.height - imageHeight) / 2), 
+                left: Math.floor((params.extent.width - imageWidth) / 2) 
+            };
+            console.log(extend);
+            let extended = await( 
+                transform.background({r: 0, g: 0, b: 0, alpha: 0}).extend(extend).toBuffer()
+            );
+
+            console.log("extract");
+            console.log(params.crop);
+            let cropLimitWidth = params.crop.width + params.crop.x < params.extent.width ? params.crop.width : params.extent.width + params.crop.x;
+            let cropLimitHeight = params.crop.height + params.crop.y < params.extent.height ? params.crop.height : params.extent.height + params.crop.y;
+            let cropLimitLeft = params.crop.x > 0 ? params.crop.x : 0;
+            let cropLimitTop = params.crop.y > 0 ? params.crop.y : 0;
+
+            let extract = { 
+                width: cropLimitWidth, 
+                height: cropLimitHeight,
+                left: cropLimitLeft,  
+                top: cropLimitTop 
+            };            
+            console.log(extract);
+            let extracted = await(
+                sharp(extended).extract(extract).toBuffer()
+            );
+
+            console.log("extend2");
+            console.log(params.extent2);
+            let extend2 = { 
+                top: params.extent2.height - params.crop.height - params.extent2.y, 
+                right: params.extent2.width - params.crop.width - params.extent2.x,
+                bottom: -params.extent2.y, 
+                left: -params.extent2.x 
+            };            
+            console.log(extend2);
+            let extended2 = await( 
+                sharp(extracted).background({r: 0, g: 0, b: 0, alpha: 0}).extend(extend2).toBuffer()
+            );
+            
+            sharp(extended2).resize(width, height).png().pipe(res);
+
+            res.writeHead(200, {'Content-Type': 'image/png'});        
+            return transform;                
+        }, (err) => {
+            console.error(err);
+        }        
+    );    
+}
+
+function withGM(inputImage, width, height, minx, miny, maxx, maxy, next, res) {
+    gm(inputImage).size(function(err, imageSize) {
+        let params = calculateMagickParams(
+            imageSize.width, 
+            imageSize.height, 
+            minx, 
+            miny, 
+            maxx, 
+            maxy, 
+            width, 
+            height
+        );
+
+        gm(inputImage)
+            .background("none")
+            .gravity("Center").extent(params.extent.width, params.extent.height)
+            .gravity("SouthWest").crop(params.crop.width, params.crop.height, params.crop.x, params.crop.y)
+            .extent(params.extent2.width, params.extent2.height, (params.extent2.x >= 0 ? ("+" + params.extent2.x) : String(params.extent2.x)) + (params.extent2.y >= 0 ? ("+" + params.extent2.y) : String(params.extent2.y)))
+            .resize(params.resize.width, params.resize.height, "!")
+            .setFormat("PNG32")
+            .stream(function streamOut (err, stdout, stderr) {
+                if (err) {
+                    return next(err);
+                }
+                res.writeHead(200, {'Content-Type': 'image/png'}); 
+                stdout.pipe(res);
+        });
+    });
+}
+
+function withImagemagick(inputImage, nonce, width, height, minx, miny, maxx, maxy, next, res) {
+    let outputImage = "PNG32:"+conf.tmpFolder + "all.parts.resized" + nonce + ".png";
+            
+    let cmd;            
+    if (minx > 1 || miny > 1 || maxx < 0 || maxy < 0) {
+        // boundingbox is completly outside of the image
+        // we just have to return an empty image
+        cmd = "convert"
+        + " -size " + targetSize
+        + " xc:none"
+        + " " + outputImage;
+    } else {            
+        let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + inputImage));
+        let imageWidth = imageSize.split("x")[0];
+        let imageHeight = imageSize.split("x")[1];
+        let params = calculateMagickParams(imageWidth, imageHeight, minx, miny, maxx, maxy, width, height);
+
+        let extent = params.extent.width + "x" + params.extent.height;
+        let crop = params.crop.width + "x" + params.crop.height + "+" + params.crop.x + "+" + params.crop.y;
+        let extent2 = params.crop.width + "x" + params.crop.height + (params.extent2.x >= 0 ? ("+" + params.extent2.x) : String(params.extent2.x)) + (params.extent2.y >= 0 ? ("+" + params.extent2.y) : String(params.extent2.y));
+        console.log(extent2);
+        let resize = width + "x" + height;
+
+        cmd = "convert " + inputImage
+        + " -background none"                   // 1) transparent background
+        + " -gravity center -extent " + extent  // 2) centered extent for matching target ratio
+        + " -gravity Southwest -crop " + crop   // 3) top-left crop for removing areas outside of the boundingbox
+        + " -extent " + extent2                 // 4) readding potential missing empty borders by extent
+        + " -resize " + resize + "!"        // 5) resizing to target size (!enforcing both dimensions)
+        + " " + outputImage;
+    }
+
+    console.log(":::" + cmd);
+
+    execAsync(cmd, transCallback(res, nonce, next));
 }
 
 function identifyMultipageImage(layers) {
@@ -283,33 +387,28 @@ function getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy, width, height) 
         doclist=doclist + originalDoc+ " ";
     }
 
-    if (srs === "testIM") {
-        return ":";
+    if (conf.sourceSRS===srs){
+        return "gdalbuildvrt "+
+        "-srcnodata '" + conf.nodata_color + "' "+
+        "-r average -overwrite " + 
+        "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
+        conf.tmpFolder + "all.parts.resized" + nonce + ".vrt "+
+        doclist;     
     } else {
-        if (conf.sourceSRS===srs){
-            return "gdalbuildvrt "+
-            "-srcnodata '" + conf.nodata_color + "' "+
-            "-r average -overwrite " + 
-            "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
-            conf.tmpFolder + "all.parts.resized" + nonce + ".vrt "+
-            doclist;     
-        }
-        else {
-            let cmd = 
-                "gdalwarp " +
-                    "-srcnodata '" + conf.nodata_color + "' " +
-                    "-dstalpha " +
-                    "-r " + conf.interpolation + " " +
-                    "-overwrite " +
-                    "-s_srs " + conf.sourceSRS + " " +
-                    "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
-                    "-t_srs " + srs + " " +
-                    "-ts " + width + " " + height + " " +
-                    "-of GTiff " +
-                    doclist + " "  +
-                    conf.tmpFolder + "all.parts.resized" + nonce + ".tif ";
-            return cmd;
-        }
+        let cmd = 
+            "gdalwarp " +
+                "-srcnodata '" + conf.nodata_color + "' " +
+                "-dstalpha " +
+                "-r " + conf.interpolation + " " +
+                "-overwrite " +
+                "-s_srs " + conf.sourceSRS + " " +
+                "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
+                "-t_srs " + srs + " " +
+                "-ts " + width + " " + height + " " +
+                "-of GTiff " +
+                doclist + " "  +
+                conf.tmpFolder + "all.parts.resized" + nonce + ".tif ";
+        return cmd;
     }
 }
 
@@ -352,8 +451,8 @@ function calculateMagickParams(imageWidth, imageHeight, minx, miny, maxx, maxy, 
         // if the boundingbox is partialy outside of the original image,
         // the result of the croped image is missing the outside areas.
         // we need to add them back by doing an extent.
-        let extent2X = "+0";
-        let extent2Y = "+0";
+        let extent2X = 0;
+        let extent2Y = 0;
         if (cropX < 0) {
             extent2X = cropX;
         }
@@ -371,38 +470,7 @@ function calculateMagickParams(imageWidth, imageHeight, minx, miny, maxx, maxy, 
         return magickParams;
 }
 
-function getTranslateCommand(inputImage, outputImage, width, height, srs, minx, miny, maxx, maxy) {            
-    if (srs === "testIM") {                
-        if (minx > 1 || miny > 1 || maxx < 0 || maxy < 0) {
-            // boundingbox is completly outside of the image
-            // we just have to return an empty image
-            let cmd = "convert"
-            + " -size " + targetSize
-            + " xc:none"
-            + " " + outputImage;
-            return cmd;
-        } else {            
-            let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + inputImage));
-            let imageWidth = imageSize.split("x")[0];
-            let imageHeight = imageSize.split("x")[1];
-            let params = calculateMagickParams(imageWidth, imageHeight, minx, miny, maxx, maxy, width, height);
-
-            let extent = params.extent.width + "x" + params.extent.height;
-            let crop = params.crop.width + "x" + params.crop.height + "+" + params.crop.x + "+" + params.crop.y;
-            let extent2 = params.crop.width + "x" + params.crop.height + params.extent2.x + params.extent2.y;
-            let resize = width + "x" + height;
-    
-            let cmd = "convert " + inputImage
-            + " -background none"                   // 1) transparent background
-            + " -gravity center -extent " + extent  // 2) centered extent for matching target ratio
-            + " -gravity Southwest -crop " + crop   // 3) top-left crop for removing areas outside of the boundingbox
-            + " -extent " + extent2                 // 4) readding potential missing empty borders by extent
-            + " -resize " + resize + "!"        // 5) resizing to target size (!enforcing both dimensions)
-            + " " + outputImage;
-            
-            return cmd;
-        }
-    } else {
+function getTranslateCommand(inputImage, nonce, outputImage, width, height, srs, minx, miny, maxx, maxy) {            
         return  "gdal_translate "+
                 "-a_nodata '" + conf.nodata_color + "' "+ 
                 "-q " +
@@ -414,7 +482,6 @@ function getTranslateCommand(inputImage, outputImage, width, height, srs, minx, 
                 "&& convert -background none "+
                 conf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png "+
                 outputImage;
-    }            
 }
 
 

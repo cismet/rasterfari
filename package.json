@@ -20,7 +20,8 @@
     "async": "^2.6.0",
     "gm": "^1.23.1",
     "mkdir-recursive": "^0.4.0",
-    "restify": "^6.3.4"
+    "restify": "^6.3.4",
+    "sharp": "^0.20.8"
   },
   "scripts": {
     "debug": "nodemon server.js --exec babel-node --inspect=0.0.0.0:9229 --watch",
