@@ -44,34 +44,45 @@ let defaults = {
     "interpolation": "average"
 };
 
-var conf = {
-    "port": extConf.port || defaults.port,
-    "host": extConf.host || defaults.host,
-    "workers": extConf.workers || defaults.workers,
-    "tmpFolder": extConf.tmpFolder || defaults.tmpFolder,
-    "cacheFolder": extConf.cacheFolder || defaults.cacheFolder,
-    "keepFilesForDebugging": extConf.keepFilesForDebugging || defaults.keepFilesForDebugging,
-    "speechComments": extConf.speechComments || defaults.speechComments,
-    "sourceSRS": extConf.sourceSRS || defaults.sourceSRS,
-    "tolerantMode": extConf.tolerantMode || defaults.tolerantMode,
-    "nodata_color": extConf.nodata_color || defaults.nodata_color,
-    "interpolation": extConf.interpolation || defaults.interpolation
-};
+let globalConf = getConf();
 
-if (!fs.existsSync(conf.tmpFolder)) {
-    fs.mkdirSync(conf.tmpFolder);
+if (!fs.existsSync(globalConf.tmpFolder)) {
+    fs.mkdirSync(globalConf.tmpFolder);
 }
-if (!fs.existsSync(conf.cacheFolder)) {
-    fs.mkdirSync(conf.cacheFolder);
+if (!fs.existsSync(globalConf.cacheFolder)) {
+    fs.mkdirSync(globalConf.cacheFolder);
 }
 
 function log(message, nonce) {
-    fs.appendFile(conf.tmpFolder + "processing_of_" + nonce + ".log", message + '\n',(error)=>{
+    fs.appendFile(globalConf.tmpFolder + "processing_of_" + nonce + ".log", message + '\n',(error)=>{
         if (error) {
             console.log("Problem during log write");
         }
     });
     console.log(message);
+}
+
+var dirConfs = [];
+
+function getConf(docDir) {
+    let dirConf = {};
+
+    if (docDir) {
+        if (dirConfs[docDir] !== undefined) {
+            dirConf = dirConfs[docDir];
+        } else {            
+            let dirConfFile = docDir + "/config.json";
+            if (fs.existsSync(dirConfFile)) {
+                dirConf = JSON.parse(fs.readFileSync(dirConfFile));
+            } else {                
+                dirConf = {};
+            }            
+        }
+
+    }
+    let conf = Object.assign(defaults, extConf, dirConf);
+    console.log(conf);
+    return conf;
 }
 
 function respond(req, res, next) {
@@ -86,19 +97,18 @@ function respond(req, res, next) {
     var maxx = sbbox[2].trim();
     var maxy = sbbox[3].trim();
     var srs = req.query.SRS||req.query.srs;
-
     var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
 
     log(title + "\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
     var docs = getDocsFromLayers(layers);
+    let conf = getConf(path.dirname(docs[0]));
 
-    extractMultipageIfNeeded(docs, () => {
-
+    extractMultipageIfNeeded(conf, docs, () => {
         log("### will process " + docs.length + " files (" + docs + ")\n", nonce);
 
-        createWorldFilesIfNeeded(docs, () => {
-            let vrt=getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height);
-            let trans=getTranslateCommand(nonce, width, height,srs, minx, miny, maxx, maxy);
+        createWorldFilesIfNeeded(conf, docs, () => {
+            let vrt = getVrtCommand(conf, docs, nonce, srs, minx, miny, maxx, maxy,width, height);
+            let trans = getTranslateCommand(conf, nonce, width, height,srs, minx, miny, maxx, maxy);
         
             console.log("\n\n\n");
             console.log(":::"+vrt); 
@@ -189,7 +199,7 @@ function respond(req, res, next) {
 
 const regexMultiPage = /\[\d+\]$/; 
 
-async function extractMultipageIfNeeded(docs, next) {
+async function extractMultipageIfNeeded(conf, docs, next) {
     for (var i = 0, l = docs.length; i < l; i++) {
         var doc = docs[i];
         if (regexMultiPage.test(doc)) {
@@ -198,16 +208,16 @@ async function extractMultipageIfNeeded(docs, next) {
             if (!fs.existsSync(multipageDir)) {
                 fx.mkdirSync(multipageDir);
                 let splitPagesCmd = "convert " + imageName + " " + multipageDir + "/%d.tiff";
-                execSync(splitPagesCmd);
                 console.log(":::" + splitPagesCmd);
+                execSync(splitPagesCmd);
             }
-            docs[i] = identifyMultipageImage(doc);
+            docs[i] = identifyMultipageImage(conf, doc);
         }
     }
     next();
 }
 
-function createWorldFilesIfNeeded(docs, next) {
+function createWorldFilesIfNeeded(conf, docs, next) {
     let done = 0;
     for (var i = 0; i < docs.length; i++) {
         var doc = docs[i];
@@ -296,7 +306,7 @@ function createWorldFilesIfNeeded(docs, next) {
     next();
 }
 
-function identifyMultipageImage(doc) {
+function identifyMultipageImage(conf, doc) {
     if (doc.match(regexMultiPage)) {
         let imageName = doc.replace(regexMultiPage, "");
         let multipageDir = conf.cacheFolder + imageName + ".multipage";
@@ -327,16 +337,16 @@ function getDocPathFromLayerPart(layerPart) {
     }
 }
 
-function getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height) {
+function getVrtCommand(conf, docs, nonce, srs, minx, miny, maxx, maxy,width, height) {
     let doclist="";
     for (var i = 0; i < docs.length; i++) {
         var originalDoc = docs[i];
         doclist=doclist + originalDoc+ " ";
     }
-
+    
     if (conf.sourceSRS===srs){
         return "gdalbuildvrt "+
-        "-srcnodata '" + conf.nodata_color + "' "+
+        (conf.nodata_color ? "-srcnodata '" + conf.nodata_color + "' " : "") +
         "-r average -overwrite " + 
         "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
         conf.tmpFolder + "all.parts.resized" + nonce + ".vrt "+
@@ -345,7 +355,7 @@ function getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height) {
     else {
          let cmd = 
              "gdalwarp " +
-                "-srcnodata '" + conf.nodata_color + "' " +
+                (conf.nodata_color ? "-srcnodata '" + conf.nodata_color + "' " : "") +
                 "-dstalpha " +
                 "-r " + conf.interpolation + " " +
                 "-overwrite " +
@@ -360,10 +370,9 @@ function getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height) {
     }
 }
 
-function getTranslateCommand(nonce, width, height,srs, minx, miny, maxx, maxy) {
-    
+function getTranslateCommand(conf, nonce, width, height,srs, minx, miny, maxx, maxy) {    
     return  "gdal_translate "+
-            "-a_nodata '" + conf.nodata_color + "' "+ 
+            (conf.nodata_color ? "-a_nodata '" + conf.nodata_color + "' " : "") +
             "-q " +
             "-outsize " + width + " " + height + " " +
             "--config GDAL_PAM_ENABLED NO "+
@@ -407,7 +416,7 @@ function createWarpTask(nonce, originalDoc, doclist, srs, minx, miny, maxx, maxy
             execAsync("say go");
         }
         var cmd = "gdalwarp " +
-                "-srcnodata '" + conf.nodata_color + "' " +
+                (conf.nodata_color ? "-srcnodata '" + conf.nodata_color + "' " : "") +
                 "-dstalpha " +
                 "-r " + conf.interpolation + " " +
                 "-overwrite " +
@@ -444,6 +453,6 @@ server.get('/rasterfariWMS/', respond);
 server.head('/geoDocWMS/', respond);
 
 server.pre(restify.pre.userAgentConnection());
-console.log("Listening on port:"+conf.port);
+console.log("Listening on port:" + globalConf.port);
 
-server.listen(conf.port, conf.host)
+server.listen(globalConf.port, globalConf.host)
