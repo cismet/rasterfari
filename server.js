@@ -188,13 +188,14 @@ async function extractMultipageIfNeeded(docs, next) {
         var doc = docs[i];
         if (regexMultiPage.test(doc)) {
             let imageName = doc.replace(regexMultiPage, "");
-            let multipageDir = conf.tmpFolder + imageName;
+            let multipageDir = imageName + ".multipage";
             if (!fs.existsSync(multipageDir)) {
                 fx.mkdirSync(multipageDir);
                 let splitPagesCmd = "convert " + imageName + " " + multipageDir + "/%d.png";
                 execSync(splitPagesCmd);
                 console.log(":::" + splitPagesCmd);
             }
+            docs[i] = identifyMultipageImage(doc);
         }
     }
     next();
@@ -283,7 +284,7 @@ function createWorldFilesIfNeeded(docs, next) {
 function identifyMultipageImage(doc) {
     if (doc.match(regexMultiPage)) {
         let imageName = doc.replace(regexMultiPage, "");
-        let multipageDir = conf.tmpFolder + imageName;
+        let multipageDir = imageName + ".multipage";
         let page = parseInt(String(doc.match(regexMultiPage, "")).replace(/[\[\]]/, ""));
     
         let inputImage = multipageDir + "/" + page + ".png";
@@ -296,11 +297,7 @@ function getDocsFromLayers(layers) {
     var docs = layers.split(",");
     for (var i = 0, l = docs.length; i < l; i++) {
         var doc = docs[i];
-        if (regexMultiPage.test(doc)) {            
-            docs[i] = identifyMultipageImage(doc);
-        } else {
-            docs[i] = getDocPathFromLayerPart(doc);
-        }
+        docs[i] = getDocPathFromLayerPart(doc);
     }
 
     return docs;
