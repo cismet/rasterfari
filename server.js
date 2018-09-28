@@ -13,7 +13,11 @@ title += "|_|  \__,_|___\/\__\___|_|  |_|  \__,_|_|  |_|" + "\n";
 //var restify = require('restify');
 var execSync = require('child_process').execSync;
 var execAsync = require('child_process').exec;
-var async = require('async');
+//var async = require('async');
+var spawnSync = require('child_process').spawnSync;
+var fx = require('mkdir-recursive');
+
+var sleep = (ms) => spawnSync(process.argv[0], ['-e', 'setTimeout(function(){},' + ms + ')']);
 var extConf = require('./config.json');
 
 var fs = require('fs');
@@ -82,27 +86,21 @@ function respond(req, res, next) {
     log(title + "\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
     var docs = getDocsFromLayers(layers);
 
-    log("### will process " + docs.length + " files (" + docs + ")\n", nonce);
+    extractMultipageIfNeeded(docs, () => {
 
+        log("### will process " + docs.length + " files (" + docs + ")\n", nonce);
 
-    let vrt=getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height);
-    let trans=getTranslateCommand(nonce, width, height,srs, minx, miny, maxx, maxy);
-
-    console.log("\n\n\n");
-    console.log(":::"+vrt); 
-    console.log("\n");
-    console.log(":::"+trans);
-    console.log("\n\n\n");
-    
-    execAsync(vrt, function (error, stdout, stderr) {
-        if (error) {
-            log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-            if (!conf.keepFilesForDebugging) {
-                execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
-            }
-            return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
-        } else {
-            execAsync(trans, function (error, stdout, stderr) {
+        createWorldFilesIfNeeded(docs, () => {
+            let vrt=getVrtCommand(docs, nonce, srs, minx, miny, maxx, maxy,width, height);
+            let trans=getTranslateCommand(nonce, width, height,srs, minx, miny, maxx, maxy);
+        
+            console.log("\n\n\n");
+            console.log(":::"+vrt); 
+            console.log("\n");
+            console.log(":::"+trans);
+            console.log("\n\n\n");
+            
+            execAsync(vrt, function (error, stdout, stderr) {
                 if (error) {
                     log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
                     if (!conf.keepFilesForDebugging) {
@@ -110,78 +108,201 @@ function respond(req, res, next) {
                     }
                     return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
                 } else {
-                    var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
-                    res.writeHead(200, {'Content-Type': 'image/png'});
-                    res.end(img, 'binary');
-                    if (conf.speechComments) {
-                        execSync("say done");
-                    }
-                    log("\n\n### Everything seems to be 200 ok", nonce);
-                    if (!conf.keepFilesForDebugging) {
-                        execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
-                    }
-                    return next();
+                    execAsync(trans, function (error, stdout, stderr) {
+                        if (error) {
+                            log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
+                            if (!conf.keepFilesForDebugging) {
+                                execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+                            }
+                            return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+                        } else {
+                            var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
+                            res.writeHead(200, {'Content-Type': 'image/png'});
+                            res.end(img, 'binary');
+                            if (conf.speechComments) {
+                                execSync("say done");
+                            }
+                            log("\n\n### Everything seems to be 200 ok", nonce);
+                            if (!conf.keepFilesForDebugging) {
+                                execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
+                            }
+                            return next();
+                        }
+                    });
                 }
             });
-        }
-    });
-
-
-
-
-    // async.parallel(tasks, function (err, results) {
-    //     if (!err) {
-    //         //at the end
-    //         if (conf.speechComments) {
-    //             execSync("say convert");
-    //         }
-
-    //         //var convertCmd = "convert " + conf.tmpFolder + "*part.resized" + nonce + "* -background none  -compose DstOver -layers merge " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
-    //         var convertCmd = "gdal_translate -q --config GDAL_PAM_ENABLED NO -of png " + conf.tmpFolder + "all.parts.resized" + nonce + ".tif " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
-    //         log("\n### merge/convert the image to the resulting png:\n" + convertCmd, nonce);
-
-    //         execAsync(convertCmd, function (error, stdout, stderr) {
-    //             if (error) {
-    //                 log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-    //                 if (!conf.keepFilesForDebugging) {
-    //                     execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
-    //                 }
-    //                 return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
-    //             } else {
-    //                 var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
-    //                 res.writeHead(200, {'Content-Type': 'image/png'});
-    //                 res.end(img, 'binary');
-    //                 if (conf.speechComments) {
-    //                     execSync("say done");
-    //                 }
-    //                 log("\n\n### Everything seems to be 200 ok", nonce);
-    //                 if (!conf.keepFilesForDebugging) {
-    //                     execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
-    //                 }
-    //                 return next();
-    //             }
-    //         });
-
-
-    //     } else {
-    //         if (conf.speechComments) {
-    //             execSync("say error");
-    //         }
-    //         log("\n\n### There seems to be at least one error :-/\n" + err.message, nonce);
-    //         if (!conf.keepFilesForDebugging) {
-    //             execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
-    //         }
-    //         return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
-    //     }
-    // });
+        
+            // async.parallel(tasks, function (err, results) {
+            //     if (!err) {
+            //         //at the end
+            //         if (conf.speechComments) {
+            //             execSync("say convert");
+            //         }
+        
+            //         //var convertCmd = "convert " + conf.tmpFolder + "*part.resized" + nonce + "* -background none  -compose DstOver -layers merge " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
+            //         var convertCmd = "gdal_translate -q --config GDAL_PAM_ENABLED NO -of png " + conf.tmpFolder + "all.parts.resized" + nonce + ".tif " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
+            //         log("\n### merge/convert the image to the resulting png:\n" + convertCmd, nonce);
+        
+            //         execAsync(convertCmd, function (error, stdout, stderr) {
+            //             if (error) {
+            //                 log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
+            //                 if (!conf.keepFilesForDebugging) {
+            //                     execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+            //                 }
+            //                 return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+            //             } else {
+            //                 var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
+            //                 res.writeHead(200, {'Content-Type': 'image/png'});
+            //                 res.end(img, 'binary');
+            //                 if (conf.speechComments) {
+            //                     execSync("say done");
+            //                 }
+            //                 log("\n\n### Everything seems to be 200 ok", nonce);
+            //                 if (!conf.keepFilesForDebugging) {
+            //                     execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
+            //                 }
+            //                 return next();
+            //             }
+            //         });
+        
+        
+            //     } else {
+            //         if (conf.speechComments) {
+            //             execSync("say error");
+            //         }
+            //         log("\n\n### There seems to be at least one error :-/\n" + err.message, nonce);
+            //         if (!conf.keepFilesForDebugging) {
+            //             execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+            //         }
+            //         return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
+            //     }
+            // });
+        });
+    });    
 }
 
+const regexMultiPage = /\[\d+\]$/; 
+
+async function extractMultipageIfNeeded(docs, next) {
+    for (var i = 0, l = docs.length; i < l; i++) {
+        var doc = docs[i];
+        if (regexMultiPage.test(doc)) {
+            let imageName = doc.replace(regexMultiPage, "");
+            let multipageDir = conf.tmpFolder + imageName;
+            if (!fs.existsSync(multipageDir)) {
+                fx.mkdirSync(multipageDir);
+                let splitPagesCmd = "convert " + imageName + " " + multipageDir + "/%d.png";
+                execSync(splitPagesCmd);
+                console.log(":::" + splitPagesCmd);
+            }
+        }
+    }
+    next();
+}
+
+function createWorldFilesIfNeeded(docs, next) {
+    let done = 0;
+    for (var i = 0; i < docs.length; i++) {
+        var originalDoc = docs[i];
+        if (!fs.existsSync(originalDoc)) {
+            continue;
+        }
+
+        let docSplit = originalDoc.split('.');
+        let docEnding = docSplit.slice(-1).join('.');
+        let worldFileEnding;
+
+        if (docEnding === 'tif' || docEnding === 'tiff') {
+            worldFileEnding = 'tfw';
+        } else if (docEnding === 'jpg' || docEnding === 'jpeg') {
+            worldFileEnding = 'jgw';
+        } else if (docEnding === 'png') {
+            worldFileEnding = 'pgw';
+        } else if (docEnding === 'gif') {
+            worldFileEnding = 'gfw';
+        }
+
+        let worldFile = docSplit.reverse().slice(1).reverse().concat(worldFileEnding).join('.');
+        
+        if (!fs.existsSync(worldFile)) {
+            let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + originalDoc));
+            let imageWidth = imageSize.split("x")[0];
+            let imageHeight = imageSize.split("x")[1];            
+            let worldFileData = calculateWorldFileData(imageWidth, imageHeight);
+            //console.log(worldFileData);
+                        
+            let fd = fs.openSync(worldFile, 'w');
+
+            let buffer = new Buffer(
+                worldFileData.xScale + '\n' +
+                worldFileData.ySkew + '\n' +
+                worldFileData.xSkew + '\n' +
+                worldFileData.yScale + '\n' +
+                worldFileData.x + '\n' +
+                worldFileData.y + '\n' +
+                ''
+            );
+
+            fs.writeSync(fd, buffer, 0, buffer.length, null);
+            fs.closeSync(fd);
+
+            console.log("start waiting");
+            let fileExists = false;
+            let sleepCycles = 0;
+            let sleepInterval = 100;
+            let maxSleep = 2000;
+            while (!fileExists) {
+                fileExists = fs.existsSync(worldFile);
+                sleep(sleepInterval);
+                if (++sleepCycles * sleepInterval > maxSleep) {
+                    break;
+                }
+                if (fileExists) {
+                    continue;
+                }
+            }
+            console.log("done waiting");
+
+            /*
+            // https://www.daveeddy.com/2013/03/26/synchronous-file-io-in-nodejs/
+            fs.appendFile(worldFile,
+                worldFileData.xScale + '\n' +
+                worldFileData.ySkew + '\n' +
+                worldFileData.xSkew + '\n' +
+                worldFileData.yScale + '\n' +
+                worldFileData.x + '\n' +
+                worldFileData.y + '\n' +
+                ''
+            );
+            */
+        }
+    }
+    next();
+}
+
+function identifyMultipageImage(doc) {
+    if (doc.match(regexMultiPage)) {
+        let imageName = doc.replace(regexMultiPage, "");
+        let multipageDir = conf.tmpFolder + imageName;
+        let page = parseInt(String(doc.match(regexMultiPage, "")).replace(/[\[\]]/, ""));
+    
+        let inputImage = multipageDir + "/" + page + ".png";
+        return inputImage;    
+    } else {
+        return doc;
+    }
+}
 function getDocsFromLayers(layers) {
     var docs = layers.split(",");
     for (var i = 0, l = docs.length; i < l; i++) {
         var doc = docs[i];
-        docs[i] = getDocPathFromLayerPart(doc);
+        if (regexMultiPage.test(doc)) {            
+            docs[i] = identifyMultipageImage(doc);
+        } else {
+            docs[i] = getDocPathFromLayerPart(doc);
+        }
     }
+
     return docs;
 }
 
@@ -243,6 +364,29 @@ function getTranslateCommand(nonce, width, height,srs, minx, miny, maxx, maxy) {
 }
 
 
+function calculateWorldFileData(imageWidth, imageHeight) {
+/*  // UPPER LEFT
+    let xul = 0;
+    let yul = 1;
+    let xlr = (imageWidth > imageHeight) ? imageHeight / imageWidth : imageWidth / imageHeight;
+    let ylr = 0;
+*/
+
+    // CENTER
+    let xul = (imageWidth > imageHeight) ? -0.5 : imageWidth / imageHeight / -2;
+    let yul = (imageWidth > imageHeight) ? imageHeight / imageWidth / 2 : 0.5;
+    let xlr = (imageWidth > imageHeight) ? 0.5 : imageWidth / imageHeight / 2;
+    let ylr = (imageWidth > imageHeight) ? imageHeight / imageWidth / -2 : -0.5;
+
+    let xScale = (xlr - xul) / imageWidth;  // x-component of the pixel width (x-scale)
+    let ySkew = 0;                          // y-component of the pixel width (y-skew)
+    let xSkew = 0;                          // x-component of the pixel height (x-skew)
+    let yScale = (ylr - yul) / imageHeight; // y-component of the pixel height (y-scale), typically negative
+    let x = xul + (xScale * .5);            // x-coordinate of the center of the upper left pixel 
+    let y = yul + (yScale * .5);            // y-coordinate of the center of the upper left pixel
+
+    return { xScale: xScale, ySkew: ySkew, xSkew: xSkew, yScale: yScale, x: x, y: y};
+}
 
 
 function createWarpTask(nonce, originalDoc, doclist, srs, minx, miny, maxx, maxy, width, height) {
