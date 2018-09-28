@@ -16,6 +16,7 @@ var execAsync = require('child_process').exec;
 //var async = require('async');
 var spawnSync = require('child_process').spawnSync;
 var fx = require('mkdir-recursive');
+var path = require('path');
 
 var sleep = (ms) => spawnSync(process.argv[0], ['-e', 'setTimeout(function(){},' + ms + ')']);
 var extConf = require('./config.json');
@@ -34,6 +35,7 @@ let defaults = {
     "host": "0.0.0.0",
     "workers": 1,
     "tmpFolder": "./tmp/",
+    "cacheFolder": "./cache/",
     "keepFilesForDebugging": false,
     "speechComments": false,
     "tolerantMode": false,
@@ -47,6 +49,7 @@ var conf = {
     "host": extConf.host || defaults.host,
     "workers": extConf.workers || defaults.workers,
     "tmpFolder": extConf.tmpFolder || defaults.tmpFolder,
+    "cacheFolder": extConf.cacheFolder || defaults.cacheFolder,
     "keepFilesForDebugging": extConf.keepFilesForDebugging || defaults.keepFilesForDebugging,
     "speechComments": extConf.speechComments || defaults.speechComments,
     "sourceSRS": extConf.sourceSRS || defaults.sourceSRS,
@@ -57,6 +60,9 @@ var conf = {
 
 if (!fs.existsSync(conf.tmpFolder)) {
     fs.mkdirSync(conf.tmpFolder);
+}
+if (!fs.existsSync(conf.cacheFolder)) {
+    fs.mkdirSync(conf.cacheFolder);
 }
 
 function log(message, nonce) {
@@ -188,7 +194,7 @@ async function extractMultipageIfNeeded(docs, next) {
         var doc = docs[i];
         if (regexMultiPage.test(doc)) {
             let imageName = doc.replace(regexMultiPage, "");
-            let multipageDir = imageName + ".multipage";
+            let multipageDir = conf.cacheFolder + imageName + ".multipage";
             if (!fs.existsSync(multipageDir)) {
                 fx.mkdirSync(multipageDir);
                 let splitPagesCmd = "convert " + imageName + " " + multipageDir + "/%d.tiff";
@@ -204,12 +210,12 @@ async function extractMultipageIfNeeded(docs, next) {
 function createWorldFilesIfNeeded(docs, next) {
     let done = 0;
     for (var i = 0; i < docs.length; i++) {
-        var originalDoc = docs[i];
-        if (!fs.existsSync(originalDoc)) {
+        var doc = docs[i];
+        if (!fs.existsSync(doc)) {
             continue;
         }
 
-        let docSplit = originalDoc.split('.');
+        let docSplit = doc.split('.');
         let docEnding = docSplit.slice(-1).join('.');
         let worldFileEnding;
 
@@ -224,58 +230,67 @@ function createWorldFilesIfNeeded(docs, next) {
         }
 
         let worldFile = docSplit.reverse().slice(1).reverse().concat(worldFileEnding).join('.');
-        
+
         if (!fs.existsSync(worldFile)) {
-            let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + originalDoc));
-            let imageWidth = imageSize.split("x")[0];
-            let imageHeight = imageSize.split("x")[1];            
-            let worldFileData = calculateWorldFileData(imageWidth, imageHeight);
-            //console.log(worldFileData);
-                        
-            let fd = fs.openSync(worldFile, 'w');
+            let cachedWorldFile = conf.cacheFolder + worldFile;
+                    
+            if (!fs.existsSync(cachedWorldFile)) {
+                fx.mkdirSync(conf.cacheFolder + path.dirname(doc));
 
-            let buffer = new Buffer(
-                worldFileData.xScale + '\n' +
-                worldFileData.ySkew + '\n' +
-                worldFileData.xSkew + '\n' +
-                worldFileData.yScale + '\n' +
-                worldFileData.x + '\n' +
-                worldFileData.y + '\n' +
-                ''
-            );
+                let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + doc));
+                let imageWidth = imageSize.split("x")[0];
+                let imageHeight = imageSize.split("x")[1];            
+                let worldFileData = calculateWorldFileData(imageWidth, imageHeight);
+                            
+                let fd = fs.openSync(cachedWorldFile, 'w');
 
-            fs.writeSync(fd, buffer, 0, buffer.length, null);
-            fs.closeSync(fd);
+                let buffer = new Buffer(
+                    worldFileData.xScale + '\n' +
+                    worldFileData.ySkew + '\n' +
+                    worldFileData.xSkew + '\n' +
+                    worldFileData.yScale + '\n' +
+                    worldFileData.x + '\n' +
+                    worldFileData.y + '\n' +
+                    ''
+                );
 
-            console.log("start waiting");
-            let fileExists = false;
-            let sleepCycles = 0;
-            let sleepInterval = 100;
-            let maxSleep = 2000;
-            while (!fileExists) {
-                fileExists = fs.existsSync(worldFile);
-                sleep(sleepInterval);
-                if (++sleepCycles * sleepInterval > maxSleep) {
-                    break;
+                fs.writeSync(fd, buffer, 0, buffer.length, null);
+                fs.closeSync(fd);
+                            
+                fs.symlinkSync("/app/" + doc, conf.cacheFolder + doc);
+
+                console.log("start waiting");
+                let fileExists = false;
+                let sleepCycles = 0;
+                let sleepInterval = 100;
+                let maxSleep = 2000;
+                while (!fileExists) {
+                    fileExists = fs.existsSync(cachedWorldFile);
+                    sleep(sleepInterval);
+                    if (++sleepCycles * sleepInterval > maxSleep) {
+                        break;
+                    }
+                    if (fileExists) {
+                        continue;
+                    }
                 }
-                if (fileExists) {
-                    continue;
-                }
+                console.log("done waiting");
+
+                /*
+                // https://www.daveeddy.com/2013/03/26/synchronous-file-io-in-nodejs/
+                fs.appendFile(worldFile,
+                    worldFileData.xScale + '\n' +
+                    worldFileData.ySkew + '\n' +
+                    worldFileData.xSkew + '\n' +
+                    worldFileData.yScale + '\n' +
+                    worldFileData.x + '\n' +
+                    worldFileData.y + '\n' +
+                    ''
+                );
+                */
+               
             }
-            console.log("done waiting");
-
-            /*
-            // https://www.daveeddy.com/2013/03/26/synchronous-file-io-in-nodejs/
-            fs.appendFile(worldFile,
-                worldFileData.xScale + '\n' +
-                worldFileData.ySkew + '\n' +
-                worldFileData.xSkew + '\n' +
-                worldFileData.yScale + '\n' +
-                worldFileData.x + '\n' +
-                worldFileData.y + '\n' +
-                ''
-            );
-            */
+            docs[i] = conf.cacheFolder + doc;
         }
     }
     next();
@@ -284,7 +299,7 @@ function createWorldFilesIfNeeded(docs, next) {
 function identifyMultipageImage(doc) {
     if (doc.match(regexMultiPage)) {
         let imageName = doc.replace(regexMultiPage, "");
-        let multipageDir = imageName + ".multipage";
+        let multipageDir = conf.cacheFolder + imageName + ".multipage";
         let page = parseInt(String(doc.match(regexMultiPage, "")).replace(/[\[\]]/, ""));
     
         let inputImage = multipageDir + "/" + page + ".tiff";

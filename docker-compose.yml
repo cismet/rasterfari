@@ -11,6 +11,7 @@ services:
   volumes:
    - ./tmp:/app/tmp
    - ./docs:/app/docs
+   - ./cache:/app/cache
    - ./config.json:/app/config.json
    ## use this only in dev
    - ./custom.js:/app/custom.js
