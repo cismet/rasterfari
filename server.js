@@ -191,7 +191,7 @@ async function extractMultipageIfNeeded(docs, next) {
             let multipageDir = imageName + ".multipage";
             if (!fs.existsSync(multipageDir)) {
                 fx.mkdirSync(multipageDir);
-                let splitPagesCmd = "convert " + imageName + " " + multipageDir + "/%d.png";
+                let splitPagesCmd = "convert " + imageName + " " + multipageDir + "/%d.tiff";
                 execSync(splitPagesCmd);
                 console.log(":::" + splitPagesCmd);
             }
@@ -287,7 +287,7 @@ function identifyMultipageImage(doc) {
         let multipageDir = imageName + ".multipage";
         let page = parseInt(String(doc.match(regexMultiPage, "")).replace(/[\[\]]/, ""));
     
-        let inputImage = multipageDir + "/" + page + ".png";
+        let inputImage = multipageDir + "/" + page + ".tiff";
         return inputImage;    
     } else {
         return doc;
