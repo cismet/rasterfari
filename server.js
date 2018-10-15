@@ -66,10 +66,11 @@ function log(message, nonce) {
     console.log(message);
 }
 
-function getConf(docDir) {
+function getConf(docInfo) {
     let dirConf = {};
 
-    if (docDir) {
+    if (docInfo) {
+        let docDir = path.dirname(docInfo.origPath);
         if (dirConfs[docDir] !== undefined) {
             dirConf = dirConfs[docDir];
         } else {
@@ -82,7 +83,7 @@ function getConf(docDir) {
         }
 
     }
-    let conf = Object.assign(defaults, extConf, dirConf);
+    let conf = Object.assign({}, defaults, extConf, dirConf);
     //console.log(conf);
     return conf;
 }
@@ -107,7 +108,7 @@ function extractParamsFromRequest(req) {
     return { layers, width, height, minx, miny, maxx, maxy, srs, customDocumentInfo };
 }
 
-function respond(req, res, next) {
+async function respond(req, res, next) {
     var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
     log(title + "\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
 
@@ -116,7 +117,7 @@ function respond(req, res, next) {
     let docInfos = getDocInfosFromLayers(layers);
     let docInfo = docInfos[0];
     let docPath = docInfo.path;
-    let conf = getConf(path.dirname(docPath));
+    let localConf = getConf(docInfo);
 
     if (docInfos.length == 1 && customDocumentInfo === "Download" || customDocumentInfo === "download" || customDocumentInfo === "DOWNLOAD") {
         fs.readFile(docPath, (error, data) => {
@@ -133,7 +134,7 @@ function respond(req, res, next) {
         return;
     }
 
-    if (conf.geoTif) {
+    if (localConf.geoTif) {
         let vrt = getVrtCommand(docInfos, nonce, srs, minx, miny, maxx, maxy, width, height);
         let trans = getTranslateCommandVrt(docInfos, nonce, width, height);
 
@@ -146,8 +147,8 @@ function respond(req, res, next) {
         execAsync(vrt, function (error, stdout, stderr) {
             if (error) {
                 log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-                if (!conf.keepFilesForDebugging) {
-                    execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+                if (!localConf.keepFilesForDebugging) {
+                    execSync("export GLOBIGNORE=*.log &&  rm " + localConf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
                 }
                 return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
             } else {
@@ -223,15 +224,16 @@ function respond(req, res, next) {
 
 function execTransAsync(trans, docInfos, nonce, res, next) {
     execAsync(trans, function (error) {
-        let conf = getConf();
+        let docInfo = docInfos[0];
+        let localConf = getConf(docInfo);
         if (error) {
             log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-            if (!conf.keepFilesForDebugging) {
-                execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
+            if (!localConf.keepFilesForDebugging) {
+                execSync("export GLOBIGNORE=*.log &&  rm " + localConf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
             }
             return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
         } else {
-            let img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
+            let img = fs.readFileSync(localConf.tmpFolder + "all.parts.resized" + nonce + ".png");
             let head = {
                 'Content-Type': 'image/png'
             };
@@ -252,12 +254,12 @@ function execTransAsync(trans, docInfos, nonce, res, next) {
             }
             res.writeHead(200, head);
             res.end(img, 'binary');
-            if (conf.speechComments) {
+            if (localConf.speechComments) {
                 execSync("say done");
             }
             log("\n\n### Everything seems to be 200 ok", nonce);
-            if (!conf.keepFilesForDebugging) {
-                execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
+            if (!localConf.keepFilesForDebugging) {
+                execSync("rm " + localConf.tmpFolder + "*" + nonce + "*");
             }
             return next();
         }
@@ -303,11 +305,11 @@ async function extractMultipageIfNeeded(docInfos, next) {
 }
 
 function extractMultipage(docInfo) {
+    let localConf = getConf(docInfo);
     let docPath = docInfo.path;
-    let conf = getConf(path.dirname(docPath));
 
     let imageName = docPath.replace(regexMultiPage, "");
-    let multipageDir = conf.cacheFolder + imageName + ".multipage";
+    let multipageDir = localConf.cacheFolder + imageName + ".multipage";
 
     if (!fs.existsSync(multipageDir)) {
         let splitPagesCmd = "convert " + imageName + " " + multipageDir + "/%d.tiff";
@@ -323,7 +325,7 @@ function createWorldFilesIfNeeded(docInfos, next) {
     for (let i = 0; i < docInfos.length; i++) {
         let docInfo = docInfos[i];
         let docPath = docInfo.path;
-        let conf = getConf(path.dirname(docPath));
+        let localConf = getConf(docInfo);
         if (!fs.existsSync(docPath)) {
             continue;
         }
@@ -352,7 +354,7 @@ function createWorldFilesIfNeeded(docInfos, next) {
         docInfo['pageHeight'] = imageHeight;
 
         if (!fs.existsSync(worldFile)) {
-            let cachedWorldFile = !worldFile.startsWith(conf.cacheFolder) ? conf.cacheFolder + worldFile : worldFile;
+            let cachedWorldFile = !worldFile.startsWith(localConf.cacheFolder) ? localConf.cacheFolder + worldFile : worldFile;
 
             if (!fs.existsSync(cachedWorldFile)) {
                 fx.mkdirSync(path.dirname(cachedWorldFile));
@@ -374,8 +376,8 @@ function createWorldFilesIfNeeded(docInfos, next) {
                 fs.writeSync(fd, buffer, 0, buffer.length, null);
                 fs.closeSync(fd);
 
-                if (!docPath.startsWith(conf.cacheFolder)) {
-                    fs.symlinkSync("/app/" + docPath, conf.cacheFolder + docPath);
+                if (!docPath.startsWith(localConf.cacheFolder)) {
+                    fs.symlinkSync("/app/" + docPath, localConf.cacheFolder + docPath);
                 }
 
                 console.log("start waiting");
@@ -409,8 +411,8 @@ function createWorldFilesIfNeeded(docInfos, next) {
                 */
 
             }
-            if (!docPath.startsWith(conf.cacheFolder)) {
-                docInfos[i] = conf.cacheFolder + docPath;
+            if (!docPath.startsWith(localConf.cacheFolder)) {
+                docInfos[i] = localConf.cacheFolder + docPath;
             }
         }
     }
@@ -418,8 +420,8 @@ function createWorldFilesIfNeeded(docInfos, next) {
 }
 
 function identifyMultipageImage(docInfo) {
+    let localConf = getConf(docInfo);
     let docPath = docInfo.path;
-    let conf = getConf(path.dirname(docPath));
 
     let imageName;
     let page;
@@ -432,7 +434,7 @@ function identifyMultipageImage(docInfo) {
     }
     docInfo.currentPage = page + 1;
 
-    let multipageDir = conf.cacheFolder + imageName + ".multipage";
+    let multipageDir = localConf.cacheFolder + imageName + ".multipage";
     let inputImage = multipageDir + "/" + page + ".tiff";
 
     return inputImage;
@@ -442,7 +444,11 @@ function getDocInfosFromLayers(layers) {
     let docInfos = [];
     let docPerLayer = layers.split(",");
     for (var i = 0, l = docPerLayer.length; i < l; i++) {
-        docInfos[i] = { 'path': getDocPathFromLayerPart(docPerLayer[i]) };
+        let origPath = docPerLayer[i];
+        docInfos[i] = { 
+            'origPath': origPath,
+            'path': getDocPathFromLayerPart(origPath) ,
+        };
     }
 
     return docInfos;
@@ -458,75 +464,71 @@ function getDocPathFromLayerPart(layerPart) {
 }
 
 function getVrtCommand(docInfos, nonce, srs, minx, miny, maxx, maxy, width, height) {
+    let localConf = getConf(docInfo);
     let docInfo = docInfos[0];
-    let docPath = docInfo.path;
-    let conf = getConf(path.dirname(docPath));
 
     let doclist = "";
     for (var i = 0; i < docInfos.length; i++) {
         doclist = doclist + docInfos[i].path + " ";
     }
-
-    if (conf.sourceSRS === srs) {
+    if (localConf.sourceSRS === srs) {
         return "gdalbuildvrt " +
-            (conf.nodata_color ? "-srcnodata '" + conf.nodata_color + "' " : "") +
+            (localConf.nodata_color ? "-srcnodata '" + localConf.nodata_color + "' " : "") +
             "-r average -overwrite " +
             "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
-            conf.tmpFolder + "all.parts.resized" + nonce + ".vrt " +
+            localConf.tmpFolder + "all.parts.resized" + nonce + ".vrt " +
             doclist;
     }
     else {
         let cmd =
             "gdalwarp " +
-            (conf.nodata_color ? "-srcnodata '" + conf.nodata_color + "' " : "") +
+            (localConf.nodata_color ? "-srcnodata '" + localConf.nodata_color + "' " : "") +
             "-dstalpha " +
-            "-r " + conf.interpolation + " " +
+            "-r " + localConf.interpolation + " " +
             "-overwrite " +
-            "-s_srs " + conf.sourceSRS + " " +
+            "-s_srs " + localConf.sourceSRS + " " +
             "-te " + minx + " " + miny + " " + maxx + " " + maxy + " " +
             "-t_srs " + srs + " " +
             "-ts " + width + " " + height + " " +
             "-of GTiff " +
             doclist + " " +
-            conf.tmpFolder + "all.parts.resized" + nonce + ".tif ";
+            localConf.tmpFolder + "all.parts.resized" + nonce + ".tif ";
         return cmd;
     }
 }
 
 function getTranslateCommandVrt(docInfos, nonce, width, height) {
+    let localConf = getConf(docInfo);
     let docInfo = docInfos[0];
-    let docPath = docInfo.path;
-    let conf = getConf(path.dirname(docPath));
 
     return "gdal_translate " +
-        (conf.nodata_color ? "-a_nodata '" + conf.nodata_color + "' " : "") +
+        (localConf.nodata_color ? "-a_nodata '" + localConf.nodata_color + "' " : "") +
         "-q " +
         "-outsize " + width + " " + height + " " +
         "--config GDAL_PAM_ENABLED NO " +
         "-of png " +
-        conf.tmpFolder + "all.parts.resized" + nonce + ".* " +
-        conf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png " +
+        localConf.tmpFolder + "all.parts.resized" + nonce + ".* " +
+        localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png " +
         "&& convert -background none " +
-        conf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png " +
-        "PNG32:" + conf.tmpFolder + "all.parts.resized" + nonce + ".png ";
+        localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png " +
+        "PNG32:" + localConf.tmpFolder + "all.parts.resized" + nonce + ".png ";
 }
 
 function getTranslateCommand(docInfo, nonce, width, height, minx, miny, maxx, maxy) {
+    let localConf = getConf(docInfo);
     let docPath = docInfo.path;
-    let conf = getConf(path.dirname(docPath));
-
     return "gdal_translate " +
-        (conf.nodata_color ? "-a_nodata '" + conf.nodata_color + "' " : "") +
+        (localConf.nodata_color ? "-a_nodata '" + localConf.nodata_color + "' " : "") +
         "-q " +
         "-outsize " + width + " " + height + " " +
         "--config GDAL_PAM_ENABLED NO " +
         "-projwin " + minx + " " + maxy + " " + maxx + " " + miny + " " +
         "-of png " +
         docPath + " " +
-        conf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png " +
+        localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png " +
         "&& convert -background none " +
-        conf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png " +
-        "PNG32:" + conf.tmpFolder + "all.parts.resized" + nonce + ".png ";
+        localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png " +
+        "PNG32:" + localConf.tmpFolder + "all.parts.resized" + nonce + ".png ";
 }
 
 
