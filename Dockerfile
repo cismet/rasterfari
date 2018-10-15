@@ -2,7 +2,7 @@
 #   - builds the frontend app (Vue, React, Webpack, ...)
 
 # Use an official node image
-FROM geographica/gdal2:2.3.1
+FROM geographica/gdal2:2.3.2
 
 RUN apt-get update
 RUN apt-get install -y curl 
@@ -60,8 +60,8 @@ RUN set -ex \
   && ln -s /opt/yarn/bin/yarn /usr/local/bin/yarnpkg \
   && rm yarn-v$YARN_VERSION.tar.gz.asc yarn-v$YARN_VERSION.tar.gz
 
-RUN apt-get install -y imagemagick vim
-RUN yarn add babel-cli mkdir-recursive pm2
+RUN apt-get install -y imagemagick poppler-utils vim
+RUN yarn add babel-cli file-type mkdir-recursive pm2
 
 # Reads args and use them to configure the build, setting
 # them as env vars
