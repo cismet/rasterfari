@@ -1,6 +1,3 @@
-import restify from 'restify';
-
-
 let title = "";
 title += "               _             __            _" + "\n";
 title += " _ __ __ _ ___| |_ ___ _ __ \/ _| __ _ _ __(_)" + "\n";
@@ -8,9 +5,8 @@ title += "| '__\/ _` \/ __| __\/ _ \ '__| |_ \/ _` | '__| |" + "\n";
 title += "| | | (_| \__ \ ||  __\/ |  |  _| (_| | |  | |" + "\n";
 title += "|_|  \__,_|___\/\__\___|_|  |_|  \__,_|_|  |_|" + "\n";
 
-
-
-//const restify = require('restify');
+const restify = require('restify');
+const errors = require('restify-errors');
 const execSync = require('child_process').execSync;
 const execAsync = require('child_process').exec;
 //const async = require('async');
@@ -32,7 +28,7 @@ if (extConf.customExtensions !== undefined) {
 }
 
 
-let defaults = {
+let defaultConf = {
     "port": 8081,
     "host": "0.0.0.0",
     "workers": 1,
@@ -48,7 +44,12 @@ let defaults = {
 };
 
 var globalConf = getConf();
-var dirConfs = [];
+var globalDirConfs = {};
+var chachedLocalDirConfs = {};
+
+if (fs.existsSync('./dirConfigs.json')) {
+    globalDirConfs = JSON.parse(fs.readFileSync('./dirConfigs.json'))
+}
 
 if (!fs.existsSync(globalConf.tmpFolder)) {
     fs.mkdirSync(globalConf.tmpFolder);
@@ -70,20 +71,22 @@ function getConf(docInfo) {
     let dirConf = {};
 
     if (docInfo) {
-        let docDir = path.dirname(docInfo.origPath);
-        if (dirConfs[docDir] !== undefined) {
-            dirConf = dirConfs[docDir];
-        } else {
-            let dirConfFile = docDir + "/config.json";
-            if (fs.existsSync(dirConfFile)) {
-                dirConf = JSON.parse(fs.readFileSync(dirConfFile));
-            } else {
-                dirConf = {};
+        let docDir = path.dirname(docInfo.origPath);        
+        let docSplit = docDir.split('/');
+        for (let i = 0; i < docSplit.length; i++) {      
+            let dir = docSplit.slice(0, i + 1).join('/');
+            let dirConfFile = dir + "/config.json";                
+            //console.log("CONF " + i + ": " + dirConfFile);          
+            
+                if (chachedLocalDirConfs[dir] === undefined) {
+                    if (fs.existsSync(dirConfFile)) {
+                        chachedLocalDirConfs[dir] = JSON.parse(fs.readFileSync(dirConfFile));                    
+                    }
+                }
+                dirConf = Object.assign(dirConf, globalDirConfs[dir], chachedLocalDirConfs[dir])
             }
-        }
-
     }
-    let conf = Object.assign({}, defaults, extConf, dirConf);
+    let conf = Object.assign({}, defaultConf, extConf, dirConf);
     //console.log(conf);
     return conf;
 }
@@ -108,7 +111,7 @@ function extractParamsFromRequest(req) {
     return { layers, width, height, minx, miny, maxx, maxy, srs, customDocumentInfo };
 }
 
-async function respond(req, res, next) {
+function respond(req, res, next) {
     var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
     log(title + "\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
 
@@ -123,7 +126,7 @@ async function respond(req, res, next) {
         fs.readFile(docPath, (error, data) => {
             if (error) {
                 log(error);
-                return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+                return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
             } else {
                 let buffer = readChunk.sync(docPath, 0, 4100);
                 let mime = fileType(buffer).mime;
@@ -150,7 +153,7 @@ async function respond(req, res, next) {
                 if (!localConf.keepFilesForDebugging) {
                     execSync("export GLOBIGNORE=*.log &&  rm " + localConf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
                 }
-                return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+                return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
             } else {
                 execTransAsync(trans, docInfos, nonce, res, next);
             }
@@ -172,7 +175,7 @@ async function respond(req, res, next) {
         //                 if (!conf.keepFilesForDebugging) {
         //                     execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
         //                 }
-        //                 return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+        //                 return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
         //             } else {
         //                 var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
         //                 res.writeHead(200, {'Content-Type': 'image/png'});
@@ -197,7 +200,7 @@ async function respond(req, res, next) {
         //         if (!conf.keepFilesForDebugging) {
         //             execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
         //         }
-        //         return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
+        //         return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
         //     }
         // });
     } else {
@@ -231,7 +234,7 @@ function execTransAsync(trans, docInfos, nonce, res, next) {
             if (!localConf.keepFilesForDebugging) {
                 execSync("export GLOBIGNORE=*.log &&  rm " + localConf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
             }
-            return next(new restify.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+            return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
         } else {
             let img = fs.readFileSync(localConf.tmpFolder + "all.parts.resized" + nonce + ".png");
             let head = {

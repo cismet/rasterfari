@@ -10,6 +10,7 @@ services:
    - 8081:8081
   volumes:
    - ./config.json:/app/config.json:ro
+   - ./dirConfigs.json:/app/dirConfigs.json:ro
    - ./docs:/app/docs:ro
    - ./policy.xml:/etc/ImageMagick-6/policy.xml:ro
    - ./tmp:/app/tmp
