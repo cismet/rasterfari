@@ -355,11 +355,7 @@ function createWorldFilesIfNeeded(docInfos, next) {
 
         let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + docPath));
         let imageWidth = imageSize.split("x")[0];
-        let imageHeight = imageSize.split("x")[1];
-
-        let stats = fs.statSync(docPath);
-        let fileSizeInBytes = stats.size;
-        docInfo['fileSize'] = fileSizeInBytes;        
+        let imageHeight = imageSize.split("x")[1];       
 
         docInfo['pageWidth'] = imageWidth;
         docInfo['pageHeight'] = imageHeight;
@@ -456,9 +452,13 @@ function getDocInfosFromLayers(layers) {
     let docPerLayer = layers.split(",");
     for (var i = 0, l = docPerLayer.length; i < l; i++) {
         let origPath = docPerLayer[i];
+        let stats = fs.statSync(origPath);
+        let fileSizeInBytes = stats.size;
+        
         docInfos[i] = { 
             'origPath': origPath,
             'path': getDocPathFromLayerPart(origPath) ,
+            'fileSize': fileSizeInBytes,
         };
     }
 
