@@ -61,7 +61,7 @@ RUN set -ex \
   && rm yarn-v$YARN_VERSION.tar.gz.asc yarn-v$YARN_VERSION.tar.gz
 
 RUN apt-get install -y imagemagick poppler-utils vim
-RUN yarn add babel-cli file-type mkdir-recursive pm2
+RUN yarn add babel-cli file-type mkdir-recursive pm2 restify restify-errors
 
 # Reads args and use them to configure the build, setting
 # them as env vars
