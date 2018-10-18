@@ -254,6 +254,9 @@ function execTransAsync(trans, docInfos, nonce, res, next) {
                 if (docInfo.pageWidth) {
                     head['X-Rasterfari-pageWidth'] = docInfo.pageWidth;
                 }
+                if (docInfo.fileSize) {
+                    head['X-Rasterfari-fileSize'] = docInfo.fileSize;
+                }
             }
             res.writeHead(200, head);
             res.end(img, 'binary');
@@ -353,6 +356,11 @@ function createWorldFilesIfNeeded(docInfos, next) {
         let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + docPath));
         let imageWidth = imageSize.split("x")[0];
         let imageHeight = imageSize.split("x")[1];
+
+        let stats = fs.statSync(docPath);
+        let fileSizeInBytes = stats.size;
+        docInfo['fileSize'] = fileSizeInBytes;        
+
         docInfo['pageWidth'] = imageWidth;
         docInfo['pageHeight'] = imageHeight;
 
