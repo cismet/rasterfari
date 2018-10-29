@@ -4,7 +4,7 @@ services:
 
  rasterfari-wms:
   container_name: rasterfari-wms
-  image: cismet/rasterfari-wms:1.0-SNAPSHOT
+  image: cismet/rasterfari-wms:latest
   network_mode: bridge
   ports:
    - 8081:8081
@@ -12,5 +12,9 @@ services:
    - ./tmp:/app/tmp
    - ./docs:/app/docs
    - ./config.json:/app/config.json
+   ## use this only in dev
    - ./custom.js:/app/custom.js
+   - ./server.js:/app/server.js
   restart: always
+  ## the default command will run rasterfari with 20 threads
+  command: yarn run dev-run

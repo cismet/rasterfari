@@ -17,18 +17,25 @@ Once in a while there is a need for an OGC WMS compliant service that serves a f
 
 ## Prerequisites
 
+* Docker 18
+
+or
+
 * based on node.js (>= 5.3.0)
 * packed with npm (>= 3.3.12)
-* uses GDAL 1.11.3
+* uses GDAL 2
 * uses ImageMagick 6.9.2-8
 
 
-## installation with 
+## installation with (we recommend the Docker way)
 
 ```bash
 git clone https://github.com/cismet/rasterfari.git
 cd rasterfari
-npm install
+
+docker-compose pull # not needed actually will be done automatically when you start
+# or
+yarn install
 ```
 
 ## configure
@@ -36,7 +43,6 @@ Just edit the config.json
 
 ```json
 {
-    "workers": 20,
     "tmpFolder": "./tmp/",
     "keepFilesForDebugging": false,
     "customExtensions":"./custom.js",
@@ -45,7 +51,6 @@ Just edit the config.json
     "//interpolation_alternatives": "near,average,bilinear,cubic,cubicspline,lanczos" 
 }
 ```
-* workers: numbers of parallel instances waiting for requests
 * tmpFolder: the folder where rasterfari stores its inbetweens
 * keepFilesForDebugging: keep the inbetweens
 * customExtensions: the file with custom js extensions
@@ -55,7 +60,9 @@ Just edit the config.json
 
 ## start
 ```bash
-npm start
+docker-compose up
+# or 
+yarn start
 ```
 
 ## examples
@@ -66,7 +73,7 @@ npm start
 
 
 ### three documents with the same bounding box show only parts of the added documents
-[http://127.0.0.1:8081/geoDocWMS?REQUEST=GetMap&SERVICE=WMS&SRS=EPSG:25832&BBOX=373649.02089266,5678438.990322266,374123.7498055822,5678702.54671875&WIDTH=870&HEIGHT=483&LAYERS=exampleDocs/B106_DBA.tif,exampleDocs/B911_DBA_Teil1.tif,exampleDocs/B911_DBA_Teil2.tif](http://127.0.0.1:8081/geoDocWMS?REQUEST=GetMap&SERVICE=WMS&SRS=EPSG:25832&BBOX=373649.02089266,5678438.990322266,374123.7498055822,5678702.54671875&WIDTH=870&HEIGHT=483&LAYERS=exampleDocs/B106_DBA.tif,exampleDocs/B911_DBA_Teil1.tif,exampleDocs/B911_DBA_Teil2.tif)
+[http://127.0.0.1:8081/geoDocWMS?REQUEST=GetMap&SERVICE=WMS&SRS=EPSG:25832&BBOX=373649.02089266,5678438.990322266,374123.7498055822,5678702.54671875&WIDTH=870&HEIGHT=483&LAYERS=exampleDocs/B106_DBA.tif,exampleDocs/B911_DBA_TEIL1.tif,exampleDocs/B911_DBA_TEIL2.tif](http://127.0.0.1:8081/geoDocWMS?REQUEST=GetMap&SERVICE=WMS&SRS=EPSG:25832&BBOX=373649.02089266,5678438.990322266,374123.7498055822,5678702.54671875&WIDTH=870&HEIGHT=483&LAYERS=exampleDocs/B106_DBA.tif,exampleDocs/B911_DBA_TEILl1.tif,exampleDocs/B911_DBA_TEIL2.tif)
 
 ![geodocwms-2](https://cloud.githubusercontent.com/assets/837211/12216385/825b020c-b6df-11e5-8088-83ba85750448.png)
 
