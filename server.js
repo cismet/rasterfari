@@ -94,28 +94,35 @@ function getConf(docInfo) {
 const regexMultiPage = /\[\d+\]$/;
 
 function extractParamsFromRequest(req) {
-    var layers = req.query.LAYERS || req.query.layers || req.query.Layers;
-    var width = req.query.WIDTH || req.query.width || req.query.Width;
-    var height = req.query.HEIGHT || req.query.height || req.query.Height;
-    var bbox = req.query.BBOX || req.query.bbox || req.query.Bbox;
+    let layers = req.query.LAYERS || req.query.layers || req.query.Layers;
+    let width = req.query.WIDTH || req.query.width || req.query.Width;
+    let height = req.query.HEIGHT || req.query.height || req.query.Height;
+    let bbox = req.query.BBOX || req.query.bbox || req.query.Bbox;
+    var srs = req.query.SRS || req.query.srs;
+    let customDocumentInfo = req.query.customDocumentInfo || req.query.CUSTOMDOCUMENTINFO || req.query.customdocumentinfo;
+    let customScale = req.query.customScale || req.query.CUSTOMSCALE || req.query.customscale || 1;    
+    let customScaleX = req.query.customScaleX || req.query.CUSTOMSCALEX || req.query.customscalex || customScale;
+    let customScaleY = req.query.customScaleY || req.query.CUSTOMSCALEY || req.query.customscaley || customScale;
+    let customOffsetX = req.query.customOffsetX || req.query.CUSTOMOFFSETX || req.query.customoffsetx || 0;
+    let customOffsetY = req.query.customOffsetX || req.query.CUSTOMOFFSETY || req.query.customoffsety || 0;
+
     if (bbox) {
         var sbbox = bbox.split(",");
-        var minx = sbbox[0].trim();
-        var miny = sbbox[1].trim();
-        var maxx = sbbox[2].trim();
-        var maxy = sbbox[3].trim();
+        var minX = (parseFloat(sbbox[0].trim()) - parseFloat(customOffsetX.trim())) / parseFloat(customScaleX.trim());
+        var minY = (parseFloat(sbbox[1].trim()) + parseFloat(customOffsetY.trim())) / parseFloat(customScaleY.trim());
+        var maxX = (parseFloat(sbbox[2].trim()) - parseFloat(customOffsetX.trim())) / parseFloat(customScaleX.trim());
+        var maxY = (parseFloat(sbbox[3].trim()) + parseFloat(customOffsetY.trim())) / parseFloat(customScaleY.trim());
     }
-    var srs = req.query.SRS || req.query.srs;
-    var customDocumentInfo = req.query.customDocumentInfo || req.query.CUSTOMDOCUMENTINFO || req.query.customdocumentinfo
 
-    return { layers, width, height, minx, miny, maxx, maxy, srs, customDocumentInfo };
+    console.log({ layers, width, height, minX, minY, maxX, maxY, srs, customDocumentInfo });
+    return { layers, width, height, minX, minY, maxX, maxY, srs, customDocumentInfo };
 }
 
 function respond(req, res, next) {
     var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
     log(title + "\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
 
-    let { layers, width, height, minx, miny, maxx, maxy, srs, customDocumentInfo } = extractParamsFromRequest(req);
+    let { layers, width, height, minX, minY, maxX, maxY, srs, customDocumentInfo } = extractParamsFromRequest(req);
 
     let docInfos = getDocInfosFromLayers(layers);
     let docInfo = docInfos[0];
@@ -138,7 +145,7 @@ function respond(req, res, next) {
     }
 
     if (localConf.geoTif) {
-        let vrt = getVrtCommand(docInfos, nonce, srs, minx, miny, maxx, maxy, width, height);
+        let vrt = getVrtCommand(docInfos, nonce, srs, minX, minY, maxX, maxY, width, height);
         let trans = getTranslateCommandVrt(docInfos, nonce, width, height);
 
         console.log("\n\n\n");
@@ -211,7 +218,7 @@ function respond(req, res, next) {
 
                 if (docInfos.length == 1) {
                     let docInfo = docInfos[0];
-                    let trans = getTranslateCommand(docInfo, nonce, width, height, minx, miny, maxx, maxy);
+                    let trans = getTranslateCommand(docInfo, nonce, width, height, minX, minY, maxX, maxY);
 
                     console.log("\n\n\n");
                     console.log(":::" + trans);
@@ -275,8 +282,7 @@ function execTransAsync(trans, docInfos, nonce, res, next) {
 async function extractMultipageIfNeeded(docInfos, next) {
     for (let i = 0, l = docInfos.length; i < l; i++) {
         let docInfo = docInfos[i];
-        let docPath = docInfo.path;
-
+        let docPath = docInfo.path;        
         if (regexMultiPage.test(docPath)) {
             docPath = extractMultipage(docInfo)
         } else {
@@ -452,8 +458,14 @@ function getDocInfosFromLayers(layers) {
     let docPerLayer = layers.split(",");
     for (var i = 0, l = docPerLayer.length; i < l; i++) {
         let origPath = docPerLayer[i];
-        let stats = fs.statSync(origPath);
-        let fileSizeInBytes = stats.size;
+        let imageName = origPath.replace(regexMultiPage, "");
+        let fileSizeInBytes;
+        if (fs.existsSync(imageName)) {
+            let stats = fs.statSync(imageName);
+            fileSizeInBytes = stats.size;
+        } else {
+            fileSizeInBytes = -1;
+        }
         
         docInfos[i] = { 
             'origPath': origPath,
