@@ -100,11 +100,11 @@ function extractParamsFromRequest(req) {
     let bbox = req.query.BBOX || req.query.bbox || req.query.Bbox;
     var srs = req.query.SRS || req.query.srs;
     let customDocumentInfo = req.query.customDocumentInfo || req.query.CUSTOMDOCUMENTINFO || req.query.customdocumentinfo;
-    let customScale = req.query.customScale || req.query.CUSTOMSCALE || req.query.customscale || 1;    
+    let customScale = req.query.customScale || req.query.CUSTOMSCALE || req.query.customscale || "1";    
     let customScaleX = req.query.customScaleX || req.query.CUSTOMSCALEX || req.query.customscalex || customScale;
     let customScaleY = req.query.customScaleY || req.query.CUSTOMSCALEY || req.query.customscaley || customScale;
-    let customOffsetX = req.query.customOffsetX || req.query.CUSTOMOFFSETX || req.query.customoffsetx || 0;
-    let customOffsetY = req.query.customOffsetX || req.query.CUSTOMOFFSETY || req.query.customoffsety || 0;
+    let customOffsetX = req.query.customOffsetX || req.query.CUSTOMOFFSETX || req.query.customoffsetx || "0";
+    let customOffsetY = req.query.customOffsetX || req.query.CUSTOMOFFSETY || req.query.customoffsety || "0";
 
     if (bbox) {
         var sbbox = bbox.split(",");
