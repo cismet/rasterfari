@@ -41,6 +41,7 @@ let defaultConf = {
     "nodata_color": "249 249 249",
     "interpolation": "average",
     "geoTif": true,
+    "dpi": null,
 };
 
 var globalConf = getConf();
@@ -324,7 +325,8 @@ function extractMultipage(docInfo) {
     let multipageDir = localConf.cacheFolder + imageName + ".multipage";
 
     if (!fs.existsSync(multipageDir)) {
-        let splitPagesCmd = "convert " + imageName + " " + multipageDir + "/%d.tiff";
+        let density = (localConf.dpi != null ? "-density " + localConf.dpi + "x" + localConf.dpi + " ": "");
+        let splitPagesCmd = "convert " + density + imageName + " " + multipageDir + "/%d.tiff";
 
         fx.mkdirSync(multipageDir);
         console.log(":::" + splitPagesCmd);
