@@ -137,8 +137,10 @@ function respond(req, res, next) {
                 return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
             } else {
                 let buffer = readChunk.sync(docPath, 0, 4100);
-                let mime = fileType(buffer).mime;
-                res.writeHead(200, { 'Content-Type': mime });
+		if (fileType(buffer) !== null) {
+                    let mime = fileType(buffer).mime;
+                    res.writeHead(200, { 'Content-Type': mime });
+                }
                 res.end(data, 'binary');
             }
         });
