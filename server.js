@@ -137,7 +137,7 @@ function respond(req, res, next) {
                 return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
             } else {
                 let buffer = readChunk.sync(docPath, 0, 4100);
-		if (fileType(buffer) !== null) {
+		        if (fileType(buffer) !== null) {
                     let mime = fileType(buffer).mime;
                     res.writeHead(200, { 'Content-Type': mime });
                 }
@@ -165,7 +165,11 @@ function respond(req, res, next) {
                 }
                 return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
             } else {
-                execTransAsync(trans, docInfos, nonce, res, next);
+                try {
+                    execTransAsync(trans, docInfos, nonce, res, next);
+                } catch (error) {
+                    return next(new errors.InternalServerError("something went wrong. the error message from the underlying process is: " + error.message));
+                }
             }
         });
         // async.parallel(tasks, function (err, results) {
@@ -230,7 +234,12 @@ function respond(req, res, next) {
                     execTransAsync(trans, docInfos, nonce, res, next);
                 }
 
+            }, (error) => {
+                return next(new errors.InternalServerError("something went wrong. the error message from the underlying process is:\n" + error.stderr));                
             });
+
+        }, (error) => {
+            return next(new errors.InternalServerError("something went wrong. the error message from the underlying process is:\n" + error.stderr));                
         });
     }
 }
@@ -246,77 +255,86 @@ function execTransAsync(trans, docInfos, nonce, res, next) {
             }
             return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
         } else {
-            let img = fs.readFileSync(localConf.tmpFolder + "all.parts.resized" + nonce + ".png");
-            let head = {
-                'Content-Type': 'image/png'
-            };
-            if (docInfos.length == 1) {
-                let docInfo = docInfos[0];
-                if (docInfo.numOfPages) {
-                    head['X-Rasterfari-numOfPages'] = docInfo.numOfPages;
+            try {
+                let img = fs.readFileSync(localConf.tmpFolder + "all.parts.resized" + nonce + ".png");
+                let head = {
+                    'Content-Type': 'image/png'
+                };
+                if (docInfos.length == 1) {
+                    let docInfo = docInfos[0];
+                    if (docInfo.numOfPages) {
+                        head['X-Rasterfari-numOfPages'] = docInfo.numOfPages;
+                    }
+                    if (docInfo.currentPage) {
+                        head['X-Rasterfari-currentPage'] = docInfo.currentPage;
+                    }
+                    if (docInfo.pageHeight) {
+                        head['X-Rasterfari-pageHeight'] = docInfo.pageHeight;
+                    }
+                    if (docInfo.pageWidth) {
+                        head['X-Rasterfari-pageWidth'] = docInfo.pageWidth;
+                    }
+                    if (docInfo.fileSize) {
+                        head['X-Rasterfari-fileSize'] = docInfo.fileSize;
+                    }
                 }
-                if (docInfo.currentPage) {
-                    head['X-Rasterfari-currentPage'] = docInfo.currentPage;
+                res.writeHead(200, head);
+                res.end(img, 'binary');
+                
+                if (localConf.speechComments) {
+                    execSync("say done");
                 }
-                if (docInfo.pageHeight) {
-                    head['X-Rasterfari-pageHeight'] = docInfo.pageHeight;
+                log("\n\n### Everything seems to be 200 ok", nonce);
+                if (!localConf.keepFilesForDebugging) {
+                    execSync("rm " + localConf.tmpFolder + "*" + nonce + "*");
                 }
-                if (docInfo.pageWidth) {
-                    head['X-Rasterfari-pageWidth'] = docInfo.pageWidth;
-                }
-                if (docInfo.fileSize) {
-                    head['X-Rasterfari-fileSize'] = docInfo.fileSize;
-                }
+                return next();
+            } catch (error) {
+                return next(new errors.InternalServerError("something went wrong. the error message from the underlying process is:\n" + error.stderr));                
             }
-            res.writeHead(200, head);
-            res.end(img, 'binary');
-            if (localConf.speechComments) {
-                execSync("say done");
-            }
-            log("\n\n### Everything seems to be 200 ok", nonce);
-            if (!localConf.keepFilesForDebugging) {
-                execSync("rm " + localConf.tmpFolder + "*" + nonce + "*");
-            }
-            return next();
         }
     });
 }
 
-async function extractMultipageIfNeeded(docInfos, next) {
-    for (let i = 0, l = docInfos.length; i < l; i++) {
-        let docInfo = docInfos[i];
-        let docPath = docInfo.path;        
-        if (regexMultiPage.test(docPath)) {
-            docPath = extractMultipage(docInfo)
-        } else {
-            //let buffer = readChunk.sync(doc, 0, 4100); 
-            //let type = fileType(buffer).ext;
+async function extractMultipageIfNeeded(docInfos, next, error) {
+    try {
+        for (let i = 0, l = docInfos.length; i < l; i++) {
+            let docInfo = docInfos[i];
+            let docPath = docInfo.path;        
+            if (regexMultiPage.test(docPath)) {
+                docPath = extractMultipage(docInfo)
+            } else {
+                //let buffer = readChunk.sync(doc, 0, 4100); 
+                //let type = fileType(buffer).ext;
 
-            //if (type === "pdf") {
-            //let numOfPages = String(execSync("pdfinfo " + doc + " | grep -a Pages: | awk '{print $2}'"));
-            //if (numOfPages > 1) {
-            docPath = extractMultipage(docInfo)
-            //}
-            //} else {
-            // multipage tiff ?? (TODO)
-            //}
+                //if (type === "pdf") {
+                //let numOfPages = String(execSync("pdfinfo " + doc + " | grep -a Pages: | awk '{print $2}'"));
+                //if (numOfPages > 1) {
+                docPath = extractMultipage(docInfo)
+                //}
+                //} else {
+                // multipage tiff ?? (TODO)
+                //}
+            }
+
+            docInfo.path = docPath;
+
+            let numOfPages;
+            if (docPath.indexOf(".multipage/") > -1) {
+                let cmd = "ls -1 $(dirname \"" + docPath + "\")/*.tiff | wc -l";
+                numOfPages = parseInt(String(execSync(cmd)).trim());
+            } else {
+                numOfPages = 1;
+            }
+
+            docInfo.path = docPath;
+            docInfo.numOfPages = numOfPages;
         }
 
-        docInfo.path = docPath;
-
-        let numOfPages;
-        if (docPath.indexOf(".multipage/") > -1) {
-            let cmd = "ls -1 $(dirname \"" + docPath + "\")/*.tiff | wc -l";
-            numOfPages = parseInt(String(execSync(cmd)).trim());
-        } else {
-            numOfPages = 1;
-        }
-
-        docInfo.path = docPath;
-        docInfo.numOfPages = numOfPages;
+        next();
+    } catch (err) {
+        error(err);        
     }
-
-    next();
 }
 
 function extractMultipage(docInfo) {
@@ -337,103 +355,107 @@ function extractMultipage(docInfo) {
     return identifyMultipageImage(docInfo);
 }
 
-function createWorldFilesIfNeeded(docInfos, next) {
-    for (let i = 0; i < docInfos.length; i++) {
-        let docInfo = docInfos[i];
-        let docPath = docInfo.path;
-        let localConf = getConf(docInfo);
-        if (!fs.existsSync(docPath)) {
-            continue;
-        }
+function createWorldFilesIfNeeded(docInfos, next, error) {
+    try {
+        for (let i = 0; i < docInfos.length; i++) {
+            let docInfo = docInfos[i];
+            let docPath = docInfo.path;
+            let localConf = getConf(docInfo);
+            if (!fs.existsSync(docPath)) {
+                continue;
+            }
 
-        let docSplit = docPath.split('.');
-        let docEnding = docSplit.slice(-1).join('.');
-        let worldFileEnding;
+            let docSplit = docPath.split('.');
+            let docEnding = docSplit.slice(-1).join('.');
+            let worldFileEnding;
 
-        if (docEnding === 'tif' || docEnding === 'tiff') {
-            worldFileEnding = 'tfw';
-        } else if (docEnding === 'jpg' || docEnding === 'jpeg') {
-            worldFileEnding = 'jgw';
-        } else if (docEnding === 'png') {
-            worldFileEnding = 'pgw';
-        } else if (docEnding === 'gif') {
-            worldFileEnding = 'gfw';
-        }
+            if (docEnding === 'tif' || docEnding === 'tiff') {
+                worldFileEnding = 'tfw';
+            } else if (docEnding === 'jpg' || docEnding === 'jpeg') {
+                worldFileEnding = 'jgw';
+            } else if (docEnding === 'png') {
+                worldFileEnding = 'pgw';
+            } else if (docEnding === 'gif') {
+                worldFileEnding = 'gfw';
+            }
 
-        let worldFile = docSplit.reverse().slice(1).reverse().concat(worldFileEnding).join('.');
+            let worldFile = docSplit.reverse().slice(1).reverse().concat(worldFileEnding).join('.');
 
 
-        let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + docPath));
-        let imageWidth = imageSize.split("x")[0];
-        let imageHeight = imageSize.split("x")[1];       
+            let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + docPath));
+            let imageWidth = imageSize.split("x")[0];
+            let imageHeight = imageSize.split("x")[1];       
 
-        docInfo['pageWidth'] = imageWidth;
-        docInfo['pageHeight'] = imageHeight;
+            docInfo['pageWidth'] = imageWidth;
+            docInfo['pageHeight'] = imageHeight;
 
-        if (!fs.existsSync(worldFile)) {
-            let cachedWorldFile = !worldFile.startsWith(localConf.cacheFolder) ? localConf.cacheFolder + worldFile : worldFile;
+            if (!fs.existsSync(worldFile)) {
+                let cachedWorldFile = !worldFile.startsWith(localConf.cacheFolder) ? localConf.cacheFolder + worldFile : worldFile;
 
-            if (!fs.existsSync(cachedWorldFile)) {
-                fx.mkdirSync(path.dirname(cachedWorldFile));
+                if (!fs.existsSync(cachedWorldFile)) {
+                    fx.mkdirSync(path.dirname(cachedWorldFile));
 
-                let worldFileData = calculateWorldFileData(imageWidth, imageHeight);
+                    let worldFileData = calculateWorldFileData(imageWidth, imageHeight);
 
-                let fd = fs.openSync(cachedWorldFile, 'w');
+                    let fd = fs.openSync(cachedWorldFile, 'w');
 
-                let buffer = new Buffer(
-                    worldFileData.xScale + '\n' +
-                    worldFileData.ySkew + '\n' +
-                    worldFileData.xSkew + '\n' +
-                    worldFileData.yScale + '\n' +
-                    worldFileData.x + '\n' +
-                    worldFileData.y + '\n' +
-                    ''
-                );
+                    let buffer = new Buffer(
+                        worldFileData.xScale + '\n' +
+                        worldFileData.ySkew + '\n' +
+                        worldFileData.xSkew + '\n' +
+                        worldFileData.yScale + '\n' +
+                        worldFileData.x + '\n' +
+                        worldFileData.y + '\n' +
+                        ''
+                    );
 
-                fs.writeSync(fd, buffer, 0, buffer.length, null);
-                fs.closeSync(fd);
+                    fs.writeSync(fd, buffer, 0, buffer.length, null);
+                    fs.closeSync(fd);
 
+                    if (!docPath.startsWith(localConf.cacheFolder)) {
+                        fs.symlinkSync("/app/" + docPath, localConf.cacheFolder + docPath);
+                    }
+
+                    console.log("start waiting");
+                    let fileExists = false;
+                    let sleepCycles = 0;
+                    let sleepInterval = 100;
+                    let maxSleep = 2000;
+                    while (!fileExists) {
+                        fileExists = fs.existsSync(cachedWorldFile);
+                        sleep(sleepInterval);
+                        if (++sleepCycles * sleepInterval > maxSleep) {
+                            break;
+                        }
+                        if (fileExists) {
+                            continue;
+                        }
+                    }
+                    console.log("done waiting");
+
+                    /*
+                    // https://www.daveeddy.com/2013/03/26/synchronous-file-io-in-nodejs/
+                    fs.appendFile(worldFile,
+                        worldFileData.xScale + '\n' +
+                        worldFileData.ySkew + '\n' +
+                        worldFileData.xSkew + '\n' +
+                        worldFileData.yScale + '\n' +
+                        worldFileData.x + '\n' +
+                        worldFileData.y + '\n' +
+                        ''
+                    );
+                    */
+
+                }
                 if (!docPath.startsWith(localConf.cacheFolder)) {
-                    fs.symlinkSync("/app/" + docPath, localConf.cacheFolder + docPath);
+                    docInfos[i] = localConf.cacheFolder + docPath;
                 }
-
-                console.log("start waiting");
-                let fileExists = false;
-                let sleepCycles = 0;
-                let sleepInterval = 100;
-                let maxSleep = 2000;
-                while (!fileExists) {
-                    fileExists = fs.existsSync(cachedWorldFile);
-                    sleep(sleepInterval);
-                    if (++sleepCycles * sleepInterval > maxSleep) {
-                        break;
-                    }
-                    if (fileExists) {
-                        continue;
-                    }
-                }
-                console.log("done waiting");
-
-                /*
-                // https://www.daveeddy.com/2013/03/26/synchronous-file-io-in-nodejs/
-                fs.appendFile(worldFile,
-                    worldFileData.xScale + '\n' +
-                    worldFileData.ySkew + '\n' +
-                    worldFileData.xSkew + '\n' +
-                    worldFileData.yScale + '\n' +
-                    worldFileData.x + '\n' +
-                    worldFileData.y + '\n' +
-                    ''
-                );
-                */
-
-            }
-            if (!docPath.startsWith(localConf.cacheFolder)) {
-                docInfos[i] = localConf.cacheFolder + docPath;
             }
         }
+        next();
+    } catch (err) {
+        error(err);
     }
-    next();
 }
 
 function identifyMultipageImage(docInfo) {
