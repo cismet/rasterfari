@@ -2,10 +2,23 @@
 #   - builds the frontend app (Vue, React, Webpack, ...)
 
 # Use an official node image
-FROM geographica/gdal2:2.3.1
+FROM geographica/gdal2:2.3.2
 
-RUN apt-get update
-RUN apt-get install -y curl 
+RUN apt-get update --fix-missing
+RUN apt-get install -y curl imagemagick locales poppler-utils vim
+
+#locales
+
+ENV LOCALE de_DE
+ENV ENCODING UTF-8
+
+RUN locale-gen ${LOCALE}.${ENCODING}
+ENV LANG ${LOCALE}.${ENCODING}
+ENV LANGUAGE ${LOCALE}.${ENCODING}
+ENV LC_ALL ${LOCALE}.${ENCODING}
+ENV TZ Europe/Berlin
+
+RUN locale-gen --purge
 
 #install node
 
@@ -60,12 +73,7 @@ RUN set -ex \
   && ln -s /opt/yarn/bin/yarn /usr/local/bin/yarnpkg \
   && rm yarn-v$YARN_VERSION.tar.gz.asc yarn-v$YARN_VERSION.tar.gz
 
-
-RUN apt-get install -y vim
-RUN apt-get install -y imagemagick
-RUN npm install pm2 -g
-RUN npm install -g babel-cli
-
+RUN yarn add babel-cli file-type mkdir-recursive pm2 restify restify-errors
 
 # Reads args and use them to configure the build, setting
 # them as env vars

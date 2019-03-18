@@ -18,7 +18,11 @@
   "contributors": [],
   "dependencies": {
     "async": "^2.6.0",
-    "restify": "^6.3.4"
+    "file-type": "^10.0.0",
+    "mkdir-recursive": "^0.4.0",
+    "read-chunk": "^3.0.0",
+    "restify": "^6.3.4",
+    "restify-errors": "^6.1.1"
   },
   "scripts": {
     "debug": "nodemon server.js --exec babel-node --inspect=0.0.0.0:9229 --watch",
