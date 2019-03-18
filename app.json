@@ -3,7 +3,7 @@
         "name": "rasterfari",
         "script": "./server.js",
         "interpreter": "babel-node",
-        "watch": true,
-        "ignore_watch": ["tmp"]
+        "watch": false,
+        "ignore_watch": ["tmp", "docs", "cache"]
     }]
 }

@@ -9,9 +9,12 @@ services:
   ports:
    - 8081:8081
   volumes:
+   - ./config.json:/app/config.json:ro
+   - ./dirConfigs.json:/app/dirConfigs.json:ro
+   - ./docs:/app/docs:ro
+   - ./policy.xml:/etc/ImageMagick-6/policy.xml:ro
    - ./tmp:/app/tmp
-   - ./docs:/app/docs
-   - ./config.json:/app/config.json
+   - ./cache:/app/cache
    ## use this only in dev
    - ./custom.js:/app/custom.js
    - ./server.js:/app/server.js
