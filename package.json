@@ -26,9 +26,9 @@
   },
   "scripts": {
     "debug": "nodemon server.js --exec babel-node --inspect=0.0.0.0:9229 --watch",
-    "start": "pm2-dev start app.json",
-    "dev-run": "pm2-dev start app.json",
-    "production-run": "pm2-docker -i 20 start app.js"
+    "start": "pm2-dev start app.json >> /app/logs/start_$(date +\"%T\").log && exec /bin/sh -c \"trap : TERM INT; (while true; do sleep 1000; done) & wait\"",
+    "dev-run": "pm2-dev start app.json >> /app/logs/dev-run.log && exec /bin/sh -c \"trap : TERM INT; (while true; do sleep 1000; done) & wait\"",
+    "production-run": "pm2-docker -i 20 start app.js >> /app/logs/production-run.log && nexec /bin/sh -c \"trap : TERM INT; (while true; do sleep 1000; done) & wait\""
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",

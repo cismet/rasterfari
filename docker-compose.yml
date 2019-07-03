@@ -18,6 +18,7 @@ services:
    ## use this only in dev
    - ./custom.js:/app/custom.js
    - ./server.js:/app/server.js
+   - ./logs:/app/logs
   restart: always
   ## the default command will run rasterfari with 20 threads
-  command: yarn run dev-run
+  #command: yarn run dev-run
