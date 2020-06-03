@@ -100,7 +100,7 @@ COPY ./.babelrc ./
 COPY *.json ./
 COPY *.js ./
 
-
+VOLUME ./logs
 EXPOSE 8081
 
 #ENTRYPOINT ["/bin/sh", "-c", "yarn", "run"]
