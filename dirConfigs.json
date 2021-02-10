@@ -1,3 +1,8 @@
 {
-    "exampleDocs": { "nodata_color": "249,249,249" }
+    "exampleDocs": {
+        "nodata_color": "249,249,249"
+    },
+    "docs/regen": {
+        "nodata_color": "-1"
+    }
 }
