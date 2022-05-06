@@ -8,18 +8,15 @@ title += "|_|  __,_|___/_____|_|  |_|  __,_|_|  |_|" + "\n";
 const restify = require("restify");
 const errors = require("restify-errors");
 const execSync = require("child_process").execSync;
-const execAsync = require("child_process").exec;
+// const execAsync = require("child_process").exec;
 const execFileSync = require("child_process").execFileSync;
 const execFileAsync = require("child_process").execFile;
-
 //const async = require('async');
 const spawnSync = require("child_process").spawnSync;
 const fx = require("mkdir-recursive");
 const path = require("path");
 const readChunk = require("read-chunk");
 const fileType = require("file-type");
-const shescape = require("shescape");
-const shescapeOptions = { shell: "/bin/bash" };
 const sleep = (ms) => spawnSync(process.argv[0], ["-e", "setTimeout(function(){}," + ms + ")"]);
 const extConf = require("./config.json");
 const corsMiddleware = require("restify-cors-middleware");
@@ -179,6 +176,7 @@ function extractParamsFromRequest(req) {
     srcSrs,
     customDocumentInfo,
   });
+
   return {
     service,
     request,
@@ -236,18 +234,24 @@ function respond(req, res, next) {
 
   if (localConf.geoTif) {
     let vrt = getVrtCommand(docInfos, nonce, srs, minX, minY, maxX, maxY, width, height);
-    let trans = getTranslateCommandVrt(docInfos, nonce, width, height);
+    let translateAndConvertCommandsVrt = getTranslateAndConvertCommandsVrt(
+      docInfos,
+      nonce,
+      width,
+      height
+    );
 
     console.log("\n\n\n");
-    console.log(":::" + vrt);
+    console.log("---localConf.geoTif");
+
+    console.log("getVrtCommand:::", vrt);
     console.log("\n");
-    console.log(":::" + trans);
-    console.log("\n\n\n");
 
-    execAsync(vrt, function (error, stdout, stderr) {
+    execFileAsync(vrt.cmd, vrt.cmdArguments, { cwd: "/app" }, function (error, stdout, stderr) {
       if (error) {
         log(
-          "\n\n### There seems to be at least one (conversion) error :-/\n" + error.message,
+          "\n\n###vrt command: There seems to be at least one (conversion) error :-/\n" +
+            error.message,
           nonce
         );
         if (!localConf.keepFilesForDebugging) {
@@ -267,7 +271,10 @@ function respond(req, res, next) {
         );
       } else {
         try {
-          execTransAsync(trans, docInfos, nonce, res, next);
+          console.log("will call", execTransAsync);
+          console.log("translateAndConvertCommandsVrt:::", translateAndConvertCommandsVrt);
+          console.log("\n\n\n");
+          execTransAsync(translateAndConvertCommandsVrt, docInfos, nonce, res, next);
         } catch (error) {
           return next(
             new errors.InternalServerError(
@@ -278,50 +285,6 @@ function respond(req, res, next) {
         }
       }
     });
-    // async.parallel(tasks, function (err, results) {
-    //     if (!err) {
-    //         //at the end
-    //         if (conf.speechComments) {
-    //             execSync("say convert");
-    //         }
-
-    //         //var convertCmd = "convert " + conf.tmpFolder + "*part.resized" + nonce + "* -background none  -compose DstOver -layers merge " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
-    //         var convertCmd = "gdal_translate -q --config GDAL_PAM_ENABLED NO -of png " + conf.tmpFolder + "all.parts.resized" + nonce + ".tif " + conf.tmpFolder + "all.parts.resized" + nonce + ".png";
-    //         log("\n### merge/convert the image to the resulting png:\n" + convertCmd, nonce);
-
-    //         execAsync(convertCmd, function (error, stdout, stderr) {
-    //             if (error) {
-    //                 log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-    //                 if (!conf.keepFilesForDebugging) {
-    //                     execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
-    //                 }
-    //                 return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
-    //             } else {
-    //                 var img = fs.readFileSync(conf.tmpFolder + "all.parts.resized" + nonce + ".png");
-    //                 res.writeHead(200, {'Content-Type': 'image/png'});
-    //                 res.end(img, 'binary');
-    //                 if (conf.speechComments) {
-    //                     execSync("say done");
-    //                 }
-    //                 log("\n\n### Everything seems to be 200 ok", nonce);
-    //                 if (!conf.keepFilesForDebugging) {
-    //                     execSync("rm " + conf.tmpFolder + "*" + nonce + "*");
-    //                 }
-    //                 return next();
-    //             }
-    //         });
-
-    //     } else {
-    //         if (conf.speechComments) {
-    //             execSync("say error");
-    //         }
-    //         log("\n\n### There seems to be at least one error :-/\n" + err.message, nonce);
-    //         if (!conf.keepFilesForDebugging) {
-    //             execSync("export GLOBIGNORE=*.log &&  rm " + conf.tmpFolder + "*" + nonce + "* 2> /dev/null && export GLOBIGNORE=");
-    //         }
-    //         return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + err.message));
-    //     }
-    // });
   } else {
     extractMultipageIfNeeded(
       docInfos,
@@ -333,7 +296,7 @@ function respond(req, res, next) {
           () => {
             if (docInfos.length == 1) {
               let docInfo = docInfos[0];
-              let trans = getTranslateCommand(
+              let translateAndConvertCommands = getTranslateAndConvertCommands(
                 docInfo,
                 nonce,
                 width,
@@ -345,10 +308,10 @@ function respond(req, res, next) {
               );
 
               console.log("\n\n\n");
-              console.log(":::" + trans);
+              console.log("translateAndConvertCommands:::", translateAndConvertCommands);
               console.log("\n\n\n");
 
-              execTransAsync(trans, docInfos, nonce, res, next);
+              execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next);
             }
           },
           (error) => {
@@ -373,72 +336,116 @@ function respond(req, res, next) {
   }
 }
 
-function execTransAsync(trans, docInfos, nonce, res, next) {
-  execAsync(trans, function (error) {
-    let docInfo = docInfos[0];
-    let localConf = getConf(docInfo);
-    if (error) {
-      log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-      if (!localConf.keepFilesForDebugging) {
-        execSync(
-          "export GLOBIGNORE=*.log &&  rm " +
-            localConf.tmpFolder +
-            "*" +
-            nonce +
-            "* 2> /dev/null && export GLOBIGNORE="
+function execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next) {
+  execFileAsync(
+    translateAndConvertCommands.cmdTranslate,
+    translateAndConvertCommands.translateArguments,
+    { cwd: "/app" },
+    function (error) {
+      let docInfo = docInfos[0];
+      let localConf = getConf(docInfo);
+      if (error) {
+        log(
+          "\n\n### There seems to be at least one (translation) error  :-/\n" + error.message,
+          nonce
         );
-      }
-      return next(
-        new errors.NotFoundError(
-          "there was something wrong with the request. the error message from the underlying process is: " +
-            error.message
-        )
-      );
-    } else {
-      try {
-        let img = fs.readFileSync(localConf.tmpFolder + "all.parts.resized" + nonce + ".png");
-        let head = {
-          "Content-Type": "image/png",
-        };
-        if (docInfos.length == 1) {
-          let docInfo = docInfos[0];
-          if (docInfo.numOfPages) {
-            head["X-Rasterfari-numOfPages"] = docInfo.numOfPages;
-          }
-          if (docInfo.currentPage) {
-            head["X-Rasterfari-currentPage"] = docInfo.currentPage;
-          }
-          if (docInfo.pageHeight) {
-            head["X-Rasterfari-pageHeight"] = docInfo.pageHeight;
-          }
-          if (docInfo.pageWidth) {
-            head["X-Rasterfari-pageWidth"] = docInfo.pageWidth;
-          }
-          if (docInfo.fileSize) {
-            head["X-Rasterfari-fileSize"] = docInfo.fileSize;
-          }
-        }
-        res.writeHead(200, head);
-        res.end(img, "binary");
 
-        if (localConf.speechComments) {
-          execSync("say done");
-        }
-        log("\n\n### Everything seems to be 200 ok", nonce);
         if (!localConf.keepFilesForDebugging) {
-          execSync("rm " + localConf.tmpFolder + "*" + nonce + "*");
+          //No vulnerability possible, since the vars are comming from the config
+          execSync(
+            "export GLOBIGNORE=*.log &&  rm " +
+              localConf.tmpFolder +
+              "*" +
+              nonce +
+              "* 2> /dev/null && export GLOBIGNORE="
+          );
         }
-        return next();
-      } catch (error) {
         return next(
-          new errors.InternalServerError(
-            "something went wrong. the error message from the underlying process is:\n" +
-              error.stderr
+          new errors.NotFoundError(
+            "there was something wrong with the request. the error message from the underlying process is: " +
+              error.message
           )
+        );
+      } else {
+        //need to do the convert part
+        execFileAsync(
+          translateAndConvertCommands.cmdConvert,
+          translateAndConvertCommands.convertArguments,
+          { cwd: "/app" },
+          function (error) {
+            if (error) {
+              log(
+                "\n\n### There seems to be at least one (converting) error :-/\n" + error.message,
+                nonce
+              );
+              if (!localConf.keepFilesForDebugging) {
+                //No vulnerability possible, since the vars are comming from the config
+                execSync(
+                  "export GLOBIGNORE=*.log &&  rm " +
+                    localConf.tmpFolder +
+                    "*" +
+                    nonce +
+                    "* 2> /dev/null && export GLOBIGNORE="
+                );
+              }
+              return next(
+                new errors.NotFoundError(
+                  "there was something wrong with the request. the error message from the underlying process is: " +
+                    error.message
+                )
+              );
+            } else {
+              try {
+                let img = fs.readFileSync(
+                  localConf.tmpFolder + "all.parts.resized" + nonce + ".png"
+                );
+                let head = {
+                  "Content-Type": "image/png",
+                };
+                if (docInfos.length == 1) {
+                  let docInfo = docInfos[0];
+                  if (docInfo.numOfPages) {
+                    head["X-Rasterfari-numOfPages"] = docInfo.numOfPages;
+                  }
+                  if (docInfo.currentPage) {
+                    head["X-Rasterfari-currentPage"] = docInfo.currentPage;
+                  }
+                  if (docInfo.pageHeight) {
+                    head["X-Rasterfari-pageHeight"] = docInfo.pageHeight;
+                  }
+                  if (docInfo.pageWidth) {
+                    head["X-Rasterfari-pageWidth"] = docInfo.pageWidth;
+                  }
+                  if (docInfo.fileSize) {
+                    head["X-Rasterfari-fileSize"] = docInfo.fileSize;
+                  }
+                }
+                res.writeHead(200, head);
+                res.end(img, "binary");
+
+                if (localConf.speechComments) {
+                  execSync("say done");
+                }
+                log("\n\n### Everything seems to be 200 ok", nonce);
+                if (!localConf.keepFilesForDebugging) {
+                  //No vulnerability possible, since the vars are comming from the config
+                  execSync("rm " + localConf.tmpFolder + "*" + nonce + "*");
+                }
+                return next();
+              } catch (error) {
+                return next(
+                  new errors.InternalServerError(
+                    "something went wrong. the error message from the underlying process is:\n" +
+                      error.stderr
+                  )
+                );
+              }
+            }
+          }
         );
       }
     }
-  });
+  );
 }
 function respond4GdalProc(req, res, next) {
   var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
@@ -456,11 +463,12 @@ function respond4GdalProc(req, res, next) {
     ending = "." + format.split("/")[1];
   }
 
-  const cmdBefore =
-    `gdal_translate ` +
-    `-projwin ${minX} ${minY} ${maxX} ${maxY} ` +
-    `${layers} ` +
-    `${localConf.tmpFolder + nonce + "out" + ending}`;
+  //   const cmdBefore =
+  //     `gdal_translate ` +
+  //     `-projwin ${minX} ${minY} ${maxX} ${maxY} ` +
+  //     `${layers} ` +
+  //     `${localConf.tmpFolder + nonce + "out" + ending}`;
+  //   console.log("cmdBefore", cmdBefore);
 
   const cmdArguments = [
     "-projwin",
@@ -471,35 +479,17 @@ function respond4GdalProc(req, res, next) {
     layers,
     localConf.tmpFolder + nonce + "out" + ending,
   ];
-
-  const quotedArguments = shescape.quoteAll(cmdArguments, shescapeOptions);
-  console.log("quotedArguments", quotedArguments);
-
-  const cmd = `gdal_translate ${quotedArguments.join("")}`;
-
-  //   console.log("cmd", cmd);
-  console.log("cmdBefore", cmdBefore);
-  //   console.log("conf", localConf);
-
-  execFileAsync("gdal_translate", cmdArguments, function (error) {
+  execFileAsync("gdal_translate", cmdArguments, { cwd: "/app" }, function (error) {
     if (error) {
       log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("There seems to be at least one (conversion) error :-/ \n\nHave a look at the logs.");
     } else {
       let result = fs.readFileSync(localConf.tmpFolder + nonce + "out" + ending);
       res.writeHead(200, { "Content-Type": format });
       res.end(result);
     }
   });
-
-  //   execAsync(cmd, function (error) {
-  //     if (error) {
-  //       log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-  //     } else {
-  //       let result = fs.readFileSync(localConf.tmpFolder + nonce + "out" + ending);
-  //       res.writeHead(200, { "Content-Type": format });
-  //       res.end(result);
-  //     }
-  //   });
 }
 async function extractMultipageIfNeeded(docInfos, next, error) {
   try {
@@ -525,9 +515,11 @@ async function extractMultipageIfNeeded(docInfos, next, error) {
       docInfo.path = docPath;
 
       let numOfPages;
+
+      //TODO: Vulnerability
       if (docPath.indexOf(".multipage/") > -1) {
-        let cmd = 'ls -1 $(dirname "' + docPath + '")/*.tiff | wc -l';
-        numOfPages = parseInt(String(execSync(cmd)).trim());
+        // let cmd = 'ls -1 $(dirname "' + docPath + '")/*.tiff | wc -l';
+        numOfPages = parseInt(String(execFileSync("getNumberOfPages.sh", [docPath])).trim());
       } else {
         numOfPages = 1;
       }
@@ -553,10 +545,10 @@ function extractMultipage(docInfo) {
     let density =
       localConf.dpi != null ? "-density " + localConf.dpi + "x" + localConf.dpi + " " : "";
     let splitPagesCmd = "convert " + density + imageName + " " + multipageDir + "/%d.tiff";
-
+    const splitArguments = [density, imageName, multipageDir + "/%d.tiff"];
     fx.mkdirSync(multipageDir);
-    console.log(":::" + splitPagesCmd);
-    execSync(splitPagesCmd);
+    console.log("splitArguments:::", splitArguments);
+    execFileSync("convert", splitArguments);
   }
   return identifyMultipageImage(docInfo);
 }
@@ -587,7 +579,9 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
 
       let worldFile = docSplit.reverse().slice(1).reverse().concat(worldFileEnding).join(".");
 
-      let imageSize = String(execSync("identify -ping -format '%[w]x%[h]' " + docPath));
+      let imageSize = String(
+        execFileSync("identify", ["-ping", "-format", "'%[w]x%[h]'", docPath])
+      );
       let imageWidth = imageSize.split("x")[0];
       let imageHeight = imageSize.split("x")[1];
 
@@ -736,32 +730,36 @@ function getVrtCommand(docInfos, nonce, srs, minx, miny, maxx, maxy, width, heig
     doclist = doclist + docInfos[i].path + " ";
   }
   if (localConf.sourceSRS === srs) {
-    const cmdBefore =
-      "gdalbuildvrt " +
-      (localConf.nodata_color ? "-srcnodata '" + localConf.nodata_color + "' " : "") +
-      "-r average -overwrite " +
-      "-te " +
-      minx +
-      " " +
-      miny +
-      " " +
-      maxx +
-      " " +
-      maxy +
-      " " +
-      localConf.tmpFolder +
-      "all.parts.resized" +
-      nonce +
-      ".vrt " +
-      doclist;
+    // const cmdBefore =
+    //   "gdalbuildvrt " +
+    //   (localConf.nodata_color ? "-srcnodata '" + localConf.nodata_color + "' " : "") +
+    //   "-r average -overwrite " +
+    //   "-te " +
+    //   minx +
+    //   " " +
+    //   miny +
+    //   " " +
+    //   maxx +
+    //   " " +
+    //   maxy +
+    //   " " +
+    //   localConf.tmpFolder +
+    //   "all.parts.resized" +
+    //   nonce +
+    //   ".vrt " +
+    //   doclist;
 
     const cmdArguments = [];
     if (localConf.sourceSRS !== srs) {
-      cmdArguments.push("-srcnodata '" + localConf.nodata_color + "' ");
+      cmdArguments.push("-srcnodata", "'" + localConf.nodata_color + "'");
     }
+
+    const docListArray = doclist.trim().split(" ");
+
     cmdArguments.push(
       ...[
-        "-r average",
+        "-r",
+        "average",
         "-overwrite",
         "-te",
         minx,
@@ -769,60 +767,61 @@ function getVrtCommand(docInfos, nonce, srs, minx, miny, maxx, maxy, width, heig
         maxx,
         maxy,
         localConf.tmpFolder + "all.parts.resized" + nonce + ".vrt",
-        doclist,
+        ...docListArray,
       ]
     );
-
-    const cmd = `gdalbuildvrt ${shescape.quoteAll(cmdArguments, shescapeOptions)}`;
-
-    return cmd;
+    return { cmd: "gdalbuildvrt", cmdArguments };
   } else {
-    let cmdBefore =
-      "gdalwarp " +
-      (localConf.nodata_color ? "-srcnodata '" + localConf.nodata_color + "' " : "") +
-      "-dstalpha " +
-      "-r " +
-      localConf.interpolation +
-      " " +
-      "-overwrite " +
-      "-s_srs " +
-      localConf.sourceSRS +
-      " " +
-      "-te " +
-      minx +
-      " " +
-      miny +
-      " " +
-      maxx +
-      " " +
-      maxy +
-      " " +
-      "-t_srs " +
-      srs +
-      " " +
-      "-ts " +
-      width +
-      " " +
-      height +
-      " " +
-      "-of GTiff " +
-      doclist +
-      " " +
-      localConf.tmpFolder +
-      "all.parts.resized" +
-      nonce +
-      ".tif ";
+    // let cmdBefore =
+    //   "gdalwarp " +
+    //   (localConf.nodata_color ? "-srcnodata '" + localConf.nodata_color + "' " : "") +
+    //   "-dstalpha " +
+    //   "-r " +
+    //   localConf.interpolation +
+    //   " " +
+    //   "-overwrite " +
+    //   "-s_srs " +
+    //   localConf.sourceSRS +
+    //   " " +
+    //   "-te " +
+    //   minx +
+    //   " " +
+    //   miny +
+    //   " " +
+    //   maxx +
+    //   " " +
+    //   maxy +
+    //   " " +
+    //   "-t_srs " +
+    //   srs +
+    //   " " +
+    //   "-ts " +
+    //   width +
+    //   " " +
+    //   height +
+    //   " " +
+    //   "-of GTiff " +
+    //   doclist +
+    //   " " +
+    //   localConf.tmpFolder +
+    //   "all.parts.resized" +
+    //   nonce +
+    //   ".tif ";
 
     const cmdArguments = [];
     if (localConf.nodata_color) {
-      cmdArguments.push("-srcnodata '" + localConf.nodata_color + "'");
+      cmdArguments.push("-srcnodata", "'" + localConf.nodata_color + "'");
     }
+    const docListArray = doclist.trim().split(" ");
+
     cmdArguments.push(
       ...[
         "-dstalpha",
-        "-r " + localConf.interpolation,
+        "-r ",
+        localConf.interpolation,
         "-overwrite",
-        "-s_srs " + localConf.sourceSRS,
+        "-s_srs ",
+        localConf.sourceSRS,
         "-te",
         minx,
         miny,
@@ -833,125 +832,146 @@ function getVrtCommand(docInfos, nonce, srs, minx, miny, maxx, maxy, width, heig
         "-ts",
         width,
         height,
-        "-of GTiff",
-        doclist,
+        "-of",
+        "GTiff",
+        ...docListArray,
         localConf.tmpFolder + "all.parts.resized" + nonce + ".tif",
       ]
     );
-    let cmd = `gdalwarp ${shescape.quoteAll(cmdArguments, shescapeOptions)}`;
 
-    return cmd;
+    return { cmd: "gdalwarp", cmdArguments };
   }
 }
 
-function getTranslateCommandVrt(docInfos, nonce, width, height) {
+function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
   let localConf = getConf(docInfo);
   let docInfo = docInfos[0];
 
-  const cmdbefore =
-    "gdal_translate " +
-    (localConf.nodata_color ? "-a_nodata '" + localConf.nodata_color + "' " : "") +
-    "-q " +
-    "-outsize " +
-    width +
-    " " +
-    height +
-    " " +
-    "--config GDAL_PAM_ENABLED NO " +
-    "-of png " +
-    localConf.tmpFolder +
-    "all.parts.resized" +
-    nonce +
-    ".* " +
-    localConf.tmpFolder +
-    "all.parts.resized" +
-    nonce +
-    "intermediate.png " +
-    "&& convert -background none " +
-    localConf.tmpFolder +
-    "all.parts.resized" +
-    nonce +
-    "intermediate.png " +
-    "PNG32:" +
-    localConf.tmpFolder +
-    "all.parts.resized" +
-    nonce +
-    ".png ";
+  //   const cmdbefore =
+  //     "gdal_translate " +
+  //     (localConf.nodata_color ? "-a_nodata '" + localConf.nodata_color + "' " : "") +
+  //     "-q " +
+  //     "-outsize " +
+  //     width +
+  //     " " +
+  //     height +
+  //     " " +
+  //     "--config GDAL_PAM_ENABLED NO " +
+  //     "-of png " +
+  //     localConf.tmpFolder +
+  //     "all.parts.resized" +
+  //     nonce +
+  //     ".* " +
+  //     localConf.tmpFolder +
+  //     "all.parts.resized" +
+  //     nonce +
+  //     "intermediate.png " +
+  //     "&& convert -background none " +
+  //     localConf.tmpFolder +
+  //     "all.parts.resized" +
+  //     nonce +
+  //     "intermediate.png " +
+  //     "PNG32:" +
+  //     localConf.tmpFolder +
+  //     "all.parts.resized" +
+  //     nonce +
+  //     ".png ";
 
   const translateArguments = [];
 
   if (localConf.nodata_color) {
-    translateArguments.push("-a_nodata '" + localConf.nodata_color + "'");
+    translateArguments.push("-a_nodata", "'" + localConf.nodata_color + "'");
   }
+
+  const intermediateFiles = fs.readdirSync(localConf.tmpFolder).filter((fn) => {
+    console.log("check for " + "all.parts.resized" + nonce, fn);
+
+    return fn.startsWith("all.parts.resized" + nonce + "_");
+  });
+  console.log(
+    "intermediateFiles xxxx " + localConf.tmpFolder + "all.parts.resized" + nonce + "*" + " xxxxxx",
+    intermediateFiles
+  );
+
   translateArguments.push(
     ...[
       "-q",
       "-outsize",
       width,
       height,
-      "--config GDAL_PAM_ENABLED NO",
-      "-of png",
-      localConf.tmpFolder + "all.parts.resized" + nonce + ".*",
+      "--config",
+      "GDAL_PAM_ENABLED",
+      "NO",
+      "-of",
+      "png",
+      //   ...intermediateFiles,
+      localConf.tmpFolder + "all.parts.resized" + nonce + ".vrt", // eigentlich *
       localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png",
     ]
   );
 
   const convertArguments = [
-    "-background none",
+    "-background",
+    "none",
     localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png",
     "PNG32:" + localConf.tmpFolder + "all.parts.resized" + nonce + ".png",
   ];
-  const cmd = `gdal_translate ${shescape.quoteAll(
-    translateArguments,
-    shescapeOptions
-  )} && convert ${shescape.quoteAll(convertArguments, shescapeOptions)}`;
+  //   const cmd = `gdal_translate ${shescape.quoteAll(
+  //     translateArguments,
+  //     shescapeOptions
+  //   )} && convert ${shescape.quoteAll(convertArguments, shescapeOptions)}`;
 
-  return cmd;
+  return {
+    cmdTranslate: "gdal_translate",
+    translateArguments,
+    cmdConvert: "convert",
+    convertArguments,
+  };
 }
 
-function getTranslateCommand(docInfo, nonce, width, height, minx, miny, maxx, maxy) {
+function getTranslateAndConvertCommands(docInfo, nonce, width, height, minx, miny, maxx, maxy) {
   let localConf = getConf(docInfo);
   let docPath = docInfo.path;
 
-  const cmdBefore =
-    "gdal_translate " +
-    (localConf.nodata_color ? "-a_nodata '" + localConf.nodata_color + "' " : "") +
-    "-q " +
-    "-outsize " +
-    width +
-    " " +
-    height +
-    " " +
-    "--config GDAL_PAM_ENABLED NO " +
-    "-projwin " +
-    minx +
-    " " +
-    maxy +
-    " " +
-    maxx +
-    " " +
-    miny +
-    " " +
-    "-of png " +
-    docPath +
-    " " +
-    localConf.tmpFolder +
-    "all.parts.resized" +
-    nonce +
-    "intermediate.png " +
-    "&& convert -background none " +
-    localConf.tmpFolder +
-    "all.parts.resized" +
-    nonce +
-    "intermediate.png " +
-    "PNG32:" +
-    localConf.tmpFolder +
-    "all.parts.resized" +
-    nonce +
-    ".png ";
+  //   const cmdBefore =
+  //     "gdal_translate " +
+  //     (localConf.nodata_color ? "-a_nodata '" + localConf.nodata_color + "' " : "") +
+  //     "-q " +
+  //     "-outsize " +
+  //     width +
+  //     " " +
+  //     height +
+  //     " " +
+  //     "--config GDAL_PAM_ENABLED NO " +
+  //     "-projwin " +
+  //     minx +
+  //     " " +
+  //     maxy +
+  //     " " +
+  //     maxx +
+  //     " " +
+  //     miny +
+  //     " " +
+  //     "-of png " +
+  //     docPath +
+  //     " " +
+  //     localConf.tmpFolder +
+  //     "all.parts.resized" +
+  //     nonce +
+  //     "intermediate.png " +
+  //     "&& convert -background none " +
+  //     localConf.tmpFolder +
+  //     "all.parts.resized" +
+  //     nonce +
+  //     "intermediate.png " +
+  //     "PNG32:" +
+  //     localConf.tmpFolder +
+  //     "all.parts.resized" +
+  //     nonce +
+  //     ".png ";
   const translateArguments = [];
   if (localConf.nodata_color) {
-    translateArguments.push("-a_nodata '" + localConf.nodata_color + "'");
+    translateArguments.push("-a_nodata", "'" + localConf.nodata_color + "'");
   }
   translateArguments.push(
     ...[
@@ -959,29 +979,38 @@ function getTranslateCommand(docInfo, nonce, width, height, minx, miny, maxx, ma
       "-outsize",
       width,
       height,
-      "--config GDAL_PAM_ENABLED NO",
+      "--config",
+      "GDAL_PAM_ENABLED",
+      "NO",
       "-projwin",
       minx,
       maxy,
       maxx,
       miny,
-      "-of png",
+      "-of",
+      "png",
       docPath,
       localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png",
     ]
   );
 
   const convertArguments = [
-    "-background none",
+    "-background",
+    "none",
     localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png",
     "PNG32:" + localConf.tmpFolder + "all.parts.resized" + nonce + ".png",
   ];
 
-  const cmd = `gdal_translate ${shescape.quoteAll(
+  //   const cmd = `gdal_translate ${shescape.quoteAll(
+  //     translateArguments,
+  //     shescapeOptions
+  //   )} && convert ${shescape.quoteAll(convertArguments, shescapeOptions)}`;
+  return {
+    cmdTranslate: "gdal_translate",
     translateArguments,
-    shescapeOptions
-  )} && convert ${shescape.quoteAll(convertArguments, shescapeOptions)}`;
-  return cmd;
+    cmdConvert: "convert",
+    convertArguments,
+  };
 }
 
 function calculateWorldFileData(imageWidth, imageHeight) {
@@ -1008,64 +1037,65 @@ function calculateWorldFileData(imageWidth, imageHeight) {
   return { xScale: xScale, ySkew: ySkew, xSkew: xSkew, yScale: yScale, x: x, y: y };
 }
 
-function createWarpTask(nonce, originalDoc, doclist, srs, minx, miny, maxx, maxy, width, height) {
-  return function (callback) {
-    if (conf.speechComments) {
-      execAsync("say go");
-    }
-    var cmd =
-      "gdalwarp " +
-      (conf.nodata_color ? "-srcnodata '" + conf.nodata_color + "' " : "") +
-      "-dstalpha " +
-      "-r " +
-      conf.interpolation +
-      " " +
-      "-overwrite " +
-      "-s_srs " +
-      conf.sourceSRS +
-      " " +
-      "-te " +
-      minx +
-      " " +
-      miny +
-      " " +
-      maxx +
-      " " +
-      maxy +
-      " " +
-      "-t_srs " +
-      srs +
-      " " +
-      "-ts " +
-      width +
-      " " +
-      height +
-      " " +
-      doclist +
-      " " +
-      conf.tmpFolder +
-      "all.parts.resized" +
-      nonce +
-      ".tif ";
-    log(cmd, nonce);
-    execAsync(cmd, null, function (error, stdout, stderr) {
-      if (error) {
-        if (!conf.tolerantMode) {
-          callback(new Error("failed getting something:" + error.message));
-        } else {
-          log(
-            "\n\n### There seems to be an error :-/ Will ignore because of the tolerantMode\n" +
-              error.message,
-            nonce
-          );
-          callback(null, true);
-        }
-      } else {
-        callback(null, true);
-      }
-    });
-  };
-}
+// this function is not used anymore (commented out to test if there are errors)
+// function createWarpTask(nonce, originalDoc, doclist, srs, minx, miny, maxx, maxy, width, height) {
+//   return function (callback) {
+//     if (conf.speechComments) {
+//       execAsync("say go");
+//     }
+//     var cmd =
+//       "gdalwarp " +
+//       (conf.nodata_color ? "-srcnodata '" + conf.nodata_color + "' " : "") +
+//       "-dstalpha " +
+//       "-r " +
+//       conf.interpolation +
+//       " " +
+//       "-overwrite " +
+//       "-s_srs " +
+//       conf.sourceSRS +
+//       " " +
+//       "-te " +
+//       minx +
+//       " " +
+//       miny +
+//       " " +
+//       maxx +
+//       " " +
+//       maxy +
+//       " " +
+//       "-t_srs " +
+//       srs +
+//       " " +
+//       "-ts " +
+//       width +
+//       " " +
+//       height +
+//       " " +
+//       doclist +
+//       " " +
+//       conf.tmpFolder +
+//       "all.parts.resized" +
+//       nonce +
+//       ".tif ";
+//     log(cmd, nonce);
+//     execAsync(cmd, null, function (error, stdout, stderr) {
+//       if (error) {
+//         if (!conf.tolerantMode) {
+//           callback(new Error("failed getting something:" + error.message));
+//         } else {
+//           log(
+//             "\n\n### There seems to be an error :-/ Will ignore because of the tolerantMode\n" +
+//               error.message,
+//             nonce
+//           );
+//           callback(null, true);
+//         }
+//       } else {
+//         callback(null, true);
+//       }
+//     });
+//   };
+// }
 
 var server = restify.createServer();
 const cors = corsMiddleware({
