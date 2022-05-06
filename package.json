@@ -23,7 +23,8 @@
     "read-chunk": "^3.0.0",
     "restify": "^6.3.4",
     "restify-cors-middleware": "^1.1.1",
-    "restify-errors": "^6.1.1"
+    "restify-errors": "^6.1.1",
+    "shescape": "^1.5.4"
   },
   "scripts": {
     "debug": "nodemon server.js --exec babel-node --inspect=0.0.0.0:9229 --watch",
