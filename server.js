@@ -9,6 +9,9 @@ const restify = require("restify");
 const errors = require("restify-errors");
 const execSync = require("child_process").execSync;
 const execAsync = require("child_process").exec;
+const execFileSync = require("child_process").execFileSync;
+const execFileAsync = require("child_process").execFile;
+
 //const async = require('async');
 const spawnSync = require("child_process").spawnSync;
 const fx = require("mkdir-recursive");
@@ -468,12 +471,17 @@ function respond4GdalProc(req, res, next) {
     layers,
     localConf.tmpFolder + nonce + "out" + ending,
   ];
-  const cmd = `gdal_translate ${shescape.quoteAll(cmdArguments, shescapeOptions)}`;
 
-  console.log("cmd", cmd);
+  const quotedArguments = shescape.quoteAll(cmdArguments, shescapeOptions);
+  console.log("quotedArguments", quotedArguments);
+
+  const cmd = `gdal_translate ${quotedArguments.join("")}`;
+
+  //   console.log("cmd", cmd);
   console.log("cmdBefore", cmdBefore);
-  console.log("conf", localConf);
-  execAsync(cmd, function (error) {
+  //   console.log("conf", localConf);
+
+  execFileAsync("gdal_translate", cmdArguments, function (error) {
     if (error) {
       log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
     } else {
@@ -482,6 +490,16 @@ function respond4GdalProc(req, res, next) {
       res.end(result);
     }
   });
+
+  //   execAsync(cmd, function (error) {
+  //     if (error) {
+  //       log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
+  //     } else {
+  //       let result = fs.readFileSync(localConf.tmpFolder + nonce + "out" + ending);
+  //       res.writeHead(200, { "Content-Type": format });
+  //       res.end(result);
+  //     }
+  //   });
 }
 async function extractMultipageIfNeeded(docInfos, next, error) {
   try {
