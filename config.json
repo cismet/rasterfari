@@ -1,10 +1,9 @@
 {
-    "workers": 20,
+    "workers": 1,
     "tmpFolder": "./tmp/",
     "keepFilesForDebugging": true,
     "tolerantMode": true,
-    "interpolation":"average",
-    "customExtensions":"./custom.js",
+    "interpolation": "average",
+    "customExtensions": "./custom.js",
     "//interpolation_alternatives": "near,average,bilinear,cubic,cubicspline,lanczos"
-    
 }
