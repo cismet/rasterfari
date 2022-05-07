@@ -1,9 +1,15 @@
 {
-    "apps": [{
-        "name": "rasterfari",
-        "script": "./server.js",
-        "interpreter": "babel-node",
-        "watch": false,
-        "ignore_watch": ["tmp", "docs", "cache"]
-    }]
+    "apps": [
+        {
+            "name": "rasterfari",
+            "script": "./server.js",
+            "interpreter": "babel-node",
+            "watch": false,
+            "ignore_watch": [
+                "tmp",
+                "docs",
+                "cache"
+            ]
+        }
+    ]
 }
