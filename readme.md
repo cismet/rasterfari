@@ -1,4 +1,5 @@
-:bangbang: Important: dont use (docker) version lower than 22.05.1 in production (and without docker) since we had a vulnerability.
+:bangbang: Important: dont use a version lower than 22.5.1 (same version for the docker image) in production (and without docker) since we had a vulnerability.
+
 :bangbang: Never use the server in production without docker (for many reasons)
 
 # RasterFari
