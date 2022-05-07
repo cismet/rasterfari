@@ -98,30 +98,57 @@ function getConf(docInfo) {
   return conf;
 }
 
-const regexMultiPage = /\[\d+\]$/;
+function sanityCheck(germs, rules) {
+  for (const key of Object.keys(germs)) {
+    const ruleRegex = rules[key];
+    if (ruleRegex === undefined) {
+      console.log("no sanitizing rule for " + key + ". This is bad");
+      throw new Error("Sanitizing Error: No rule for " + key);
+    } else {
+      if (germs[key] !== undefined && !ruleRegex.test(germs[key])) {
+        console.log("sanitizing rule for " + key + ": " + germs[key] + " failed. This is bad");
+        throw new Error("Sanitizing Error: Sanitizer for " + key + " failed");
+      } else {
+        console.log("sanitizing rule for " + key + " passed. This is good", germs[key]);
+      }
+    }
+  }
+}
 
-const regExInt = new RegExp(`^(\\d+)$`);
-const regExFloat = new RegExp(`^(\\d*[.]\\d+)$`);
-const regExContentType = new RegExp(`^(.*)\\.(.*)$`);
-const regExSRS = new RegExp(`^EPSG:\\d+$`);
-const regEx = {};
+const regexMultiPage = /\[\d+\]$/; //not used for sanity checks
 
-//basically evrything is allowed
-regEx.layers = new RegExp(`^(.*)$`);
+// parameter sanity checks regexs for reuse
+const regExInt = new RegExp(/^(\d+)$/);
+const regExFloat = new RegExp(/^-?\d*(\.\d+)?$/);
+const regExContentType = new RegExp(/^(.*)\/.(.*)$/);
+const regExSRS = new RegExp(/^EPSG:\d+$/);
+
+// fill the checks reg exs with the samme keys as in the parameter object
+const sanityRegExs = {};
+sanityRegExs.layers = new RegExp(
+  /^(([\w|.])+(\/([\w\.+-])*)*(\[\d+\])*)(,(([\w|.])+(\/([\w\.-])*)*(\[\d+\])*))*$/
+); //basically everything is allowed
 //integer
-regEx.width = regExInt;
-regEx.height = regExInt;
+sanityRegExs.width = regExInt;
+sanityRegExs.height = regExInt;
 //floats
-regEx.customScale = regExFloat;
-regEx.customScaleX = regExFloat;
-regEx.customOffsetX = regExFloat;
-regEx.customOffsetY = regExFloat;
+sanityRegExs.customScale = regExFloat;
+sanityRegExs.customScaleX = regExFloat;
+sanityRegExs.customOffsetX = regExFloat;
+sanityRegExs.customOffsetY = regExFloat;
+sanityRegExs.minX = regExFloat;
+sanityRegExs.minY = regExFloat;
+sanityRegExs.maxX = regExFloat;
+sanityRegExs.maxY = regExFloat;
 
-regEx.format = regExContentType;
-regEx.srs = regExSRS;
-regEx.srcSrs = regExSRS;
+sanityRegExs.format = regExContentType;
+sanityRegExs.srs = regExSRS;
+sanityRegExs.srcSrs = regExSRS;
 
-regEx.bbox = new RegExp(`^()$`);
+sanityRegExs.bbox = new RegExp(/^(-?\d+(\.\d+)?),(-?\d+(\.\d+)?),(-?\d+(\.\d+)?),(-?\d+(\.\d+)?)$/);
+sanityRegExs.service = new RegExp(/^WMS$/, "i");
+sanityRegExs.request = new RegExp(/^GetMap$|^translate$/, "i");
+sanityRegExs.customDocumentInfo = new RegExp(/^download$/, "i");
 
 function extractParamsFromRequest(req) {
   let layers = req.query.LAYERS || req.query.layers || req.query.Layers;
@@ -142,6 +169,8 @@ function extractParamsFromRequest(req) {
   let customOffsetY =
     req.query.customOffsetX || req.query.CUSTOMOFFSETY || req.query.customoffsety || "0";
 
+  sanityCheck({ bbox }, sanityRegExs);
+
   if (bbox) {
     var sbbox = bbox.split(",");
     var minX =
@@ -161,23 +190,7 @@ function extractParamsFromRequest(req) {
   let request = req.query.REQUEST || req.query.request || req.query.Request || "GetMap";
   let format = req.query.FORMAT || req.query.format || req.query.Format || "image/png";
 
-  console.log({
-    service,
-    request,
-    format,
-    layers,
-    width,
-    height,
-    minX,
-    minY,
-    maxX,
-    maxY,
-    srs,
-    srcSrs,
-    customDocumentInfo,
-  });
-
-  return {
+  const params = {
     service,
     request,
     format,
@@ -192,15 +205,24 @@ function extractParamsFromRequest(req) {
     srcSrs,
     customDocumentInfo,
   };
+  console.log(params);
+
+  sanityCheck(params, sanityRegExs);
+
+  return params;
 }
 
 function respond(req, res, next) {
   var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
   log(title + "\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
-
-  let { layers, width, height, minX, minY, maxX, maxY, srs, customDocumentInfo } =
-    extractParamsFromRequest(req);
-
+  let params;
+  try {
+    params = extractParamsFromRequest(req);
+  } catch (e) {
+    res.writeHead(400, { "Content-Type": "text/plain" });
+    res.end("Bad Request :-/ \n\nHave a look at the logs.");
+  }
+  let { layers, width, height, minX, minY, maxX, maxY, srs, customDocumentInfo } = params;
   let docInfos = getDocInfosFromLayers(layers);
   let docInfo = docInfos[0];
   let docPath = docInfo.path;
@@ -469,8 +491,17 @@ function respond4GdalProc(req, res, next) {
   var nonce = "_" + Math.floor(Math.random() * 10000000) + "_";
   log(title + "\n### Request:\n\n" + req.headers.host + req.url + "\n", nonce);
 
+  let params;
+  try {
+    params = extractParamsFromRequest(req);
+  } catch (e) {
+    res.writeHead(400, { "Content-Type": "text/plain" });
+    res.end("Bad Request :-/ \n\nHave a look at the logs.");
+  }
+
   let { service, request, format, layers, width, height, minX, minY, maxX, maxY, srs, srcSrs } =
-    extractParamsFromRequest(req);
+    params;
+
   let docInfos = getDocInfosFromLayers(layers);
   let docInfo = docInfos[0];
   let docPath = docInfo.path;
@@ -1127,19 +1158,19 @@ server.use(restify.plugins.queryParser());
 server.use(restify.plugins.bodyParser());
 
 if (globalConf.geoDocWMSCoreActive === true) {
-server.get("/geoDocWMS/", respond);
-server.get("/rasterfariWMS/", respond);
+  server.get("/geoDocWMS/", respond);
+  server.get("/rasterfariWMS/", respond);
 }
 if (globalConf.gdalProcessorCoreActive === true) {
-server.get("/gdalProcessor/", respond4GdalProc);
+  server.get("/gdalProcessor/", respond4GdalProc);
 }
 
 if (globalConf.geoDocWMSCoreActive === true) {
-server.head("/geoDocWMS/", respond);
-server.head("/rasterfariWMS/", respond);
+  server.head("/geoDocWMS/", respond);
+  server.head("/rasterfariWMS/", respond);
 }
 if (globalConf.gdalProcessorCoreActive === true) {
-server.head("/gdalProcessor/", respond4GdalProc);
+  server.head("/gdalProcessor/", respond4GdalProc);
 }
 
 server.pre(restify.pre.userAgentConnection());
