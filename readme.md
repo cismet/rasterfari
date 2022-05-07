@@ -1,3 +1,6 @@
+:bangbang: Important: dont use (docker) version lower than 22.05.1 in production (and without docker) since we had a vulnerability.
+:bangbang: Never use the server in production without docker (for many reasons)
+
 # RasterFari
 
 ![1452108578_rasta](https://cloud.githubusercontent.com/assets/837211/12175511/fbe583fa-b562-11e5-9775-b59badbe5e1d.png)
