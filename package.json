@@ -1,5 +1,8 @@
 {
-  "name": "rasterfari",
+  "name": "rasterfari-wms",
+  "config": {
+    "dockerRegistryPath": "cismet"
+  },
   "version": "1.1.0",
   "keywords": [
     "raster",
@@ -30,7 +33,9 @@
     "start": "pm2-dev start app.json ",
     "start_": "pm2-dev start app.json >> /app/logs/start_$(date +\"%T\").log && exec /bin/sh -c \"trap : TERM INT; (while true; do sleep 1000; done) & wait\"",
     "dev-run": "pm2-dev start app.json >> /app/logs/dev-run.log && exec /bin/sh -c \"trap : TERM INT; (while true; do sleep 1000; done) & wait\"",
-    "production-run": "pm2-docker -i 20 start app.js >> /app/logs/production-run.log && nexec /bin/sh -c \"trap : TERM INT; (while true; do sleep 1000; done) & wait\""
+    "production-run": "pm2-docker -i 20 start app.js >> /app/logs/production-run.log && nexec /bin/sh -c \"trap : TERM INT; (while true; do sleep 1000; done) & wait\"",
+    "build:docker": "VERSION=`echo $npm_package_version| sed 's/\\.[0-9]*-SNAPSHOT.*$/-SNAPSHOT/'`; docker build  -t cismet/$npm_package_name -t cismet/$npm_package_name:$VERSION .",
+    "publish:docker": "yarn run build:docker; VERSION=`echo $npm_package_version| sed 's/\\.[0-9]*-SNAPSHOT.*$/-SNAPSHOT/'`; docker tag cismet/$npm_package_name:$VERSION $npm_package_config_dockerRegistryPath/$npm_package_name:$VERSION && docker push $npm_package_config_dockerRegistryPath/$npm_package_name:$VERSION"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
