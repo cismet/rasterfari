@@ -1126,13 +1126,21 @@ server.use(restify.plugins.acceptParser(server.acceptable));
 server.use(restify.plugins.queryParser());
 server.use(restify.plugins.bodyParser());
 
+if (globalConf.geoDocWMSCoreActive === true) {
 server.get("/geoDocWMS/", respond);
 server.get("/rasterfariWMS/", respond);
+}
+if (globalConf.gdalProcessorCoreActive === true) {
 server.get("/gdalProcessor/", respond4GdalProc);
+}
 
+if (globalConf.geoDocWMSCoreActive === true) {
 server.head("/geoDocWMS/", respond);
 server.head("/rasterfariWMS/", respond);
+}
+if (globalConf.gdalProcessorCoreActive === true) {
 server.head("/gdalProcessor/", respond4GdalProc);
+}
 
 server.pre(restify.pre.userAgentConnection());
 console.log("Listening on port:" + globalConf.port);
