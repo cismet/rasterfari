@@ -244,10 +244,12 @@ function respond(req, res, next) {
     console.log("\n\n\n");
     console.log("---localConf.geoTif");
 
-    console.log("getVrtCommand:::", vrt);
-    console.log("\n");
+    // console.log("getVrtCommand:::", vrt);
+    // console.log("\n");
 
-    execFileAsync(vrt.cmd, vrt.cmdArguments, { cwd: "/app" }, function (error, stdout, stderr) {
+    console.log("--- " + vrt.cmd + " " + vrt.cmdArguments.join(" "));
+
+    execFileAsync(vrt.cmd, vrt.cmdArguments, { shell: true }, function (error, stdout, stderr) {
       if (error) {
         log(
           "\n\n###vrt command: There seems to be at least one (conversion) error :-/\n" +
@@ -271,9 +273,9 @@ function respond(req, res, next) {
         );
       } else {
         try {
-          console.log("will call", execTransAsync);
-          console.log("translateAndConvertCommandsVrt:::", translateAndConvertCommandsVrt);
-          console.log("\n\n\n");
+          console.log("will call execTransAsync");
+          //   console.log("translateAndConvertCommandsVrt:::", translateAndConvertCommandsVrt);
+
           execTransAsync(translateAndConvertCommandsVrt, docInfos, nonce, res, next);
         } catch (error) {
           return next(
@@ -337,10 +339,17 @@ function respond(req, res, next) {
 }
 
 function execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next) {
+  console.log(
+    "--- " +
+      translateAndConvertCommands.cmdTranslate +
+      " " +
+      translateAndConvertCommands.translateArguments.join(" ")
+  );
+
   execFileAsync(
     translateAndConvertCommands.cmdTranslate,
     translateAndConvertCommands.translateArguments,
-    { cwd: "/app" },
+    { cwd: "/app", shell: true },
     function (error) {
       let docInfo = docInfos[0];
       let localConf = getConf(docInfo);
@@ -368,6 +377,15 @@ function execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next)
         );
       } else {
         //need to do the convert part
+        console.log("+++", translateAndConvertCommands);
+
+        console.log(
+          "--- " +
+            translateAndConvertCommands.cmdConvert +
+            " " +
+            translateAndConvertCommands.convertArguments.join(" ")
+        );
+
         execFileAsync(
           translateAndConvertCommands.cmdConvert,
           translateAndConvertCommands.convertArguments,
@@ -883,15 +901,15 @@ function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
     translateArguments.push("-a_nodata", "'" + localConf.nodata_color + "'");
   }
 
-  const intermediateFiles = fs.readdirSync(localConf.tmpFolder).filter((fn) => {
-    console.log("check for " + "all.parts.resized" + nonce, fn);
+  //   const intermediateFiles = fs.readdirSync(localConf.tmpFolder).filter((fn) => {
+  //     console.log("check for " + "all.parts.resized" + nonce, fn);
 
-    return fn.startsWith("all.parts.resized" + nonce + "_");
-  });
-  console.log(
-    "intermediateFiles xxxx " + localConf.tmpFolder + "all.parts.resized" + nonce + "*" + " xxxxxx",
-    intermediateFiles
-  );
+  //     return fn.startsWith("all.parts.resized" + nonce + "_");
+  //   });
+  //   console.log(
+  //     "intermediateFiles xxxx " + localConf.tmpFolder + "all.parts.resized" + nonce + "*" + " xxxxxx",
+  //     intermediateFiles
+  //   );
 
   translateArguments.push(
     ...[
@@ -905,7 +923,7 @@ function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
       "-of",
       "png",
       //   ...intermediateFiles,
-      localConf.tmpFolder + "all.parts.resized" + nonce + ".vrt", // eigentlich *
+      localConf.tmpFolder + "all.parts.resized" + nonce + ".*",
       localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png",
     ]
   );
