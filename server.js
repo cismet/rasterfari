@@ -768,7 +768,7 @@ function getVrtCommand(docInfos, nonce, srs, minx, miny, maxx, maxy, width, heig
     //   doclist;
 
     const cmdArguments = [];
-    if (localConf.sourceSRS !== srs) {
+    if (localConf.nodata_color) {
       cmdArguments.push("-srcnodata", "'" + localConf.nodata_color + "'");
     }
 
