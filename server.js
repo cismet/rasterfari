@@ -221,6 +221,7 @@ function respond(req, res, next) {
   } catch (e) {
     res.writeHead(400, { "Content-Type": "text/plain" });
     res.end("Bad Request :-/ \n\nHave a look at the logs.");
+    return;
   }
   let { layers, width, height, minX, minY, maxX, maxY, srs, customDocumentInfo } = params;
   let docInfos = getDocInfosFromLayers(layers);
@@ -497,6 +498,7 @@ function respond4GdalProc(req, res, next) {
   } catch (e) {
     res.writeHead(400, { "Content-Type": "text/plain" });
     res.end("Bad Request :-/ \n\nHave a look at the logs.");
+    return;
   }
 
   let { service, request, format, layers, width, height, minX, minY, maxX, maxY, srs, srcSrs } =
