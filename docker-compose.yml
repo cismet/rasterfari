@@ -24,3 +24,4 @@ services:
     ## the default command will run rasterfari with 20 threads
     ##command: "yarn run dev-run"
     command: /bin/bash -c "sleep infinity"
+    #command: "pm2-docker -i 20 start app.js"
