@@ -5,5 +5,7 @@
     "tolerantMode": true,
     "interpolation": "average",
     "customExtensions": "./custom.js",
-    "//interpolation_alternatives": "near,average,bilinear,cubic,cubicspline,lanczos"
+    "//interpolation_alternatives": "near,average,bilinear,cubic,cubicspline,lanczos",
+    "geoDocWMSCoreActive": true,
+    "gdalProcessorCoreActive": true
 }
