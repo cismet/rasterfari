@@ -595,15 +595,27 @@ function extractMultipage(docInfo) {
 
   let imageName = docPath.replace(regexMultiPage, "");
   let multipageDir = localConf.cacheFolder + imageName + ".multipage";
+  console.log("will extractMultipage", { docInfo, multipageDir, imageName });
 
   if (!fs.existsSync(multipageDir)) {
+    console.log("multipage folder does not exist will create it", multipageDir);
+    fx.mkdirSync(multipageDir);
     let density =
       localConf.dpi != null ? "-density " + localConf.dpi + "x" + localConf.dpi + " " : "";
     let splitPagesCmd = "convert " + density + imageName + " " + multipageDir + "/%d.tiff";
-    const splitArguments = [density, imageName, multipageDir + "/%d.tiff"];
-    fx.mkdirSync(multipageDir);
+    const splitArguments = ["-quiet", density, imageName, multipageDir + "/%d.tiff"];
+
     console.log("splitArguments:::", splitArguments);
-    execFileSync("convert", splitArguments);
+    try {
+      //execFileSync("/usr/bin/convert", splitArguments, { cwd: "/app" });
+      execSync(splitPagesCmd); //TODO Vulnarable to injection
+    } catch (e) {
+      console.log("error while splitting multipage", e);
+      execFileSync("rm", ["-rf", multipageDir]);
+      throw new Error("error while splitting multipage");
+    }
+  } else {
+    console.log("multipage folder already exists", multipageDir);
   }
   return identifyMultipageImage(docInfo);
 }
