@@ -102,17 +102,21 @@ function sanityCheck(germs, rules) {
   for (const key of Object.keys(germs)) {
     const ruleRegex = rules[key];
     if (ruleRegex === undefined) {
+      if (globalConf.sanitizingDebug === true) {
       console.log("no sanitizing rule for " + key + ". This is bad");
+      }
       throw new Error("Sanitizing Error: No rule for " + key);
     } else {
       if (germs[key] !== undefined && !ruleRegex.test(germs[key])) {
         console.log("sanitizing rule for " + key + ": " + germs[key] + " failed. This is bad");
         throw new Error("Sanitizing Error: Sanitizer for " + key + " failed");
       } else {
+        if (globalConf.sanitizingDebug === true) {
         console.log("sanitizing rule for " + key + " passed. This is good", germs[key]);
       }
     }
   }
+}
 }
 
 const regexMultiPage = /\[\d+\]$/; //not used for sanity checks
