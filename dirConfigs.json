@@ -4,5 +4,34 @@
     },
     "docs/regen": {
         "nodata_color": "-1"
+    },
+    "vermessungsregister": {
+        "nodata_color": "249 249 249",
+        "geoTif": false
+    },
+    "bplandocs": {
+        "nodata_color": null,
+        "geoTif": false,
+        "dpi": 96
+    },
+    "bplaene": {
+        "nodata_color": "249 249 249",
+        "geoTif": false
+    },
+    "Baulasten": {
+        "nodata_color": "249 249 249",
+        "geoTif": false
+    },
+    "Baulasten/000000-001000": {
+        "nodata_color": "249 249 249",
+        "geoTif": false
+    },
+    "qsgeb": {
+        "nodata_color": "249 249 249",
+        "geoTif": false,
+        "dpi": 96
+    },
+    "docs": {
+        "nodata_color": "249 249 249"
     }
 }

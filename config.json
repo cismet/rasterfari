@@ -4,6 +4,8 @@
     "keepFilesForDebugging": true,
     "tolerantMode": true,
     "interpolation": "average",
+    "sourceSRS": "EPSG:25832",
+    "nodata_color": "249 249 249",
     "customExtensions": "./custom.js",
     "//interpolation_alternatives": "near,average,bilinear,cubic,cubicspline,lanczos",
     "geoDocWMSCoreActive": true,
