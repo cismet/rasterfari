@@ -730,6 +730,8 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
     }
     next();
   } catch (err) {
+    console.log("error in createWorldFilesIfNeeded", err);
+
     error(err);
   }
 }
