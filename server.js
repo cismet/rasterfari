@@ -652,6 +652,9 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
       let imageWidth = imageSize.split("x")[0];
       let imageHeight = imageSize.split("x")[1];
 
+      //remove leading and trailing quoate characters
+      imageWidth = imageWidth.replace(/^['"]+|\s+|\\|\/|['"]+$/g, "");
+      imageHeight = imageHeight.replace(/^['"]+|\s+|\\|\/|['"]+$/g, "");
       docInfo["pageWidth"] = imageWidth;
       docInfo["pageHeight"] = imageHeight;
 
