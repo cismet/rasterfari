@@ -318,7 +318,7 @@ function respond(req, res, next) {
     extractMultipageIfNeeded(
       docInfos,
       () => {
-        log("### will process " + docInfos.length + " files (" + docInfos + ")\n", nonce);
+        log("### will process " + docInfos.length + " files ", docInfos, nonce);
 
         createWorldFilesIfNeeded(
           docInfos,
