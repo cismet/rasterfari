@@ -7,6 +7,7 @@ services:
     network_mode: bridge
     ports:
       - 8081:8081
+      - 9229:9229
     volumes:
       - ./config.json:/app/config.json:ro
       - ./dirConfigs.json:/app/dirConfigs.json:ro
@@ -22,6 +23,7 @@ services:
       - ./app.json:/app/app.json
     restart: always
     ## the default command will run rasterfari with 20 threads
-    ##command: "yarn run dev-run"
-    command: /bin/bash -c "sleep infinity"
-    #command: "pm2-docker -i 20 start app.js"
+
+    command: "yarn run production-run"
+    #command: /bin/bash -c "sleep infinity"
+    #command: "yarn start"
