@@ -63,7 +63,6 @@ COPY ./.babelrc ./
 COPY *.json ./
 COPY *.js ./
 
-VOLUME ./logs
 EXPOSE 8081
 
 RUN pm2 update
