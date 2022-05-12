@@ -571,18 +571,24 @@ async function extractMultipageIfNeeded(docInfos, next, error) {
 
       let numOfPages;
 
-      //TODO: Vulnerability
       if (docPath.indexOf(".multipage/") > -1) {
         // let cmd = 'ls -1 $(dirname "' + docPath + '")/*.tiff | wc -l';
-        numOfPages = parseInt(String(execFileSync("getNumberOfPages.sh", [docPath])).trim());
+        try {
+          console.log("docPath", docPath);
+          const folder = path.dirname(docPath);
+          const fileObjs = fs.readdirSync(folder);
+          const tiffs = fileObjs.filter((fo) => fo.endsWith(".tiff"));
+          numOfPages = tiffs.length;
+        } catch (e) {
+          console.log("error in getNumberOfPages", e);
+          numOfPages = 1;
+        }
       } else {
         numOfPages = 1;
       }
-
       docInfo.path = docPath;
       docInfo.numOfPages = numOfPages;
     }
-
     next();
   } catch (err) {
     error(err);
