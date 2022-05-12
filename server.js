@@ -261,7 +261,7 @@ function respond(req, res, next) {
         log(error);
         return next(
           new errors.NotFoundError(
-            "there was something wrong with the request. the error message from the underlying process is: " +
+            "01: there was something wrong with the request. the error message from the underlying process is: " +
               error.message
           )
         );
@@ -310,7 +310,7 @@ function respond(req, res, next) {
         }
         return next(
           new errors.NotFoundError(
-            "there was something wrong with the request. the error message from the underlying process is: " +
+            "02: there was something wrong with the request. the error message from the underlying process is: " +
               error.message
           )
         );
@@ -323,7 +323,7 @@ function respond(req, res, next) {
         } catch (error) {
           return next(
             new errors.InternalServerError(
-              "something went wrong. the error message from the underlying process is: " +
+              "03: something went wrong. the error message from the underlying process is: " +
                 error.message
             )
           );
@@ -360,7 +360,7 @@ function respond(req, res, next) {
           (error) => {
             return next(
               new errors.InternalServerError(
-                "something went wrong. the error message from the underlying process is:\n" +
+                "04: something went wrong. the error message from the underlying process is:\n" +
                   error.stderr
               )
             );
@@ -370,8 +370,7 @@ function respond(req, res, next) {
       (error) => {
         return next(
           new errors.InternalServerError(
-            "something went wrong. the error message from the underlying process is:\n" +
-              error.stderr
+            "05: something went wrong. the error message from the underlying process is:" + error
           )
         );
       }
@@ -412,7 +411,7 @@ function execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next)
         }
         return next(
           new errors.NotFoundError(
-            "there was something wrong with the request. the error message from the underlying process is: " +
+            "06: there was something wrong with the request. the error message from the underlying process is: " +
               error.message
           )
         );
@@ -449,7 +448,7 @@ function execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next)
               }
               return next(
                 new errors.NotFoundError(
-                  "there was something wrong with the request. the error message from the underlying process is: " +
+                  "07: there was something wrong with the request. the error message from the underlying process is: " +
                     error.message
                 )
               );
@@ -494,7 +493,7 @@ function execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next)
               } catch (error) {
                 return next(
                   new errors.InternalServerError(
-                    "something went wrong. the error message from the underlying process is:\n" +
+                    "08: something went wrong. the error message from the underlying process is:\n" +
                       error.stderr
                   )
                 );
