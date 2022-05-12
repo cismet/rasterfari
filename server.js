@@ -103,7 +103,7 @@ function sanityCheck(germs, rules) {
     const ruleRegex = rules[key];
     if (ruleRegex === undefined) {
       if (globalConf.sanitizingDebug === true) {
-      console.log("no sanitizing rule for " + key + ". This is bad");
+        console.log("no sanitizing rule for " + key + ". This is bad");
       }
       throw new Error("Sanitizing Error: No rule for " + key);
     } else {
@@ -112,11 +112,11 @@ function sanityCheck(germs, rules) {
         throw new Error("Sanitizing Error: Sanitizer for " + key + " failed");
       } else {
         if (globalConf.sanitizingDebug === true) {
-        console.log("sanitizing rule for " + key + " passed. This is good", germs[key]);
+          console.log("sanitizing rule for " + key + " passed. This is good", germs[key]);
+        }
       }
     }
   }
-}
 }
 
 const regexMultiPage = /\[\d+\]$/; //not used for sanity checks
@@ -210,7 +210,6 @@ function extractParamsFromRequest(req) {
     customDocumentInfo,
   };
   console.log(params);
-
   sanityCheck(params, sanityRegExs);
 
   return params;
@@ -556,7 +555,6 @@ async function extractMultipageIfNeeded(docInfos, next, error) {
       } else {
         //let buffer = readChunk.sync(doc, 0, 4100);
         //let type = fileType(buffer).ext;
-
         //if (type === "pdf") {
         //let numOfPages = String(execSync("pdfinfo " + doc + " | grep -a Pages: | awk '{print $2}'"));
         //if (numOfPages > 1) {
