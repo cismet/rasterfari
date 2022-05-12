@@ -9,5 +9,6 @@
     "customExtensions": "./custom.js",
     "//interpolation_alternatives": "near,average,bilinear,cubic,cubicspline,lanczos",
     "geoDocWMSCoreActive": true,
-    "gdalProcessorCoreActive": true
+    "gdalProcessorCoreActive": true,
+    "debugLogs": false
 }
