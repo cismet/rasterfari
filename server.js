@@ -24,9 +24,10 @@ const corsMiddleware = require("restify-cors-middleware");
 const fs = require("fs");
 if (extConf.customExtensions !== undefined) {
   var customExtensions = require(extConf.customExtensions);
-  // console.log("custom extensions loaded from " + configuration.custom)
+
+  console.debug("custom extensions loaded", extConf.customExtensions);
 } else {
-  //console.log("no custom extensions loaded");
+  console.debug("no custom extensions loaded");
 }
 
 let defaultConf = {
@@ -44,9 +45,27 @@ let defaultConf = {
   geoTif: true,
   dpi: null,
   corsAccessControlAllowOrigins: ["http://localhost:*", "https://rasterfari.cismet.de"],
+  debugLogs: false,
+  infoLogs: true,
+  warningLogs: true,
+  errorLogs: true,
 };
 
-var globalConf = getConf();
+const globalConf = getConf();
+
+if (globalConf.debugLogs === false) {
+  console.debug = () => {};
+}
+if (globalConf.infoLogs === false) {
+  console.info = () => {};
+}
+if (globalConf.warningLogs === false) {
+  console.warn = () => {};
+}
+if (globalConf.errorLogs === false) {
+  console.error = () => {};
+}
+
 var globalDirConfs = {};
 var chachedLocalDirConfs = {};
 
@@ -67,11 +86,11 @@ function log(message, nonce) {
     message + "\n",
     (error) => {
       if (error) {
-        console.log("Problem during log write");
+        console.error("Problem during log write");
       }
     }
   );
-  console.log(message);
+  console.info(message);
 }
 
 function getConf(docInfo) {
@@ -83,7 +102,7 @@ function getConf(docInfo) {
     for (let i = 0; i < docSplit.length; i++) {
       let dir = docSplit.slice(0, i + 1).join("/");
       let dirConfFile = dir + "/config.json";
-      //console.log("CONF " + i + ": " + dirConfFile);
+      //console.debug("CONF " + i + ": " + dirConfFile);
 
       if (chachedLocalDirConfs[dir] === undefined) {
         if (fs.existsSync(dirConfFile)) {
@@ -94,7 +113,7 @@ function getConf(docInfo) {
     }
   }
   let conf = Object.assign({}, defaultConf, extConf, dirConf);
-  //console.log(conf);
+  //console.debug(conf);
   return conf;
 }
 
@@ -103,16 +122,16 @@ function sanityCheck(germs, rules) {
     const ruleRegex = rules[key];
     if (ruleRegex === undefined) {
       if (globalConf.sanitizingDebug === true) {
-        console.log("no sanitizing rule for " + key + ". This is bad");
+        console.error("no sanitizing rule for " + key + ". This is bad");
       }
       throw new Error("Sanitizing Error: No rule for " + key);
     } else {
       if (germs[key] !== undefined && !ruleRegex.test(germs[key])) {
-        console.log("sanitizing rule for " + key + ": " + germs[key] + " failed. This is bad");
+        console.error("sanitizing rule for " + key + ": " + germs[key] + " failed. This is bad");
         throw new Error("Sanitizing Error: Sanitizer for " + key + " failed");
       } else {
         if (globalConf.sanitizingDebug === true) {
-          console.log("sanitizing rule for " + key + " passed. This is good", germs[key]);
+          console.debug("sanitizing rule for " + key + " passed. This is good", germs[key]);
         }
       }
     }
@@ -209,7 +228,7 @@ function extractParamsFromRequest(req) {
     srcSrs,
     customDocumentInfo,
   };
-  console.log(params);
+  console.debug(params);
   sanityCheck(params, sanityRegExs);
 
   return params;
@@ -267,13 +286,11 @@ function respond(req, res, next) {
       height
     );
 
-    console.log("\n\n\n");
-    console.log("---localConf.geoTif");
+    console.debug("---localConf.geoTif");
 
-    // console.log("getVrtCommand:::", vrt);
-    // console.log("\n");
+    console.debug("getVrtCommand:::", vrt);
 
-    console.log("--- " + vrt.cmd + " " + vrt.cmdArguments.join(" "));
+    console.debug("--- " + vrt.cmd + " " + vrt.cmdArguments.join(" "));
 
     execFileAsync(vrt.cmd, vrt.cmdArguments, { shell: true }, function (error, stdout, stderr) {
       if (error) {
@@ -299,8 +316,8 @@ function respond(req, res, next) {
         );
       } else {
         try {
-          console.log("will call execTransAsync");
-          //   console.log("translateAndConvertCommandsVrt:::", translateAndConvertCommandsVrt);
+          console.debug("will call execTransAsync");
+          //   console.debug("translateAndConvertCommandsVrt:::", translateAndConvertCommandsVrt);
 
           execTransAsync(translateAndConvertCommandsVrt, docInfos, nonce, res, next);
         } catch (error) {
@@ -335,9 +352,7 @@ function respond(req, res, next) {
                 maxY
               );
 
-              console.log("\n\n\n");
-              console.log("translateAndConvertCommands:::", translateAndConvertCommands);
-              console.log("\n\n\n");
+              console.debug("translateAndConvertCommands:::", translateAndConvertCommands);
 
               execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next);
             }
@@ -365,7 +380,7 @@ function respond(req, res, next) {
 }
 
 function execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next) {
-  console.log(
+  console.debug(
     "--- " +
       translateAndConvertCommands.cmdTranslate +
       " " +
@@ -403,9 +418,9 @@ function execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next)
         );
       } else {
         //need to do the convert part
-        console.log("+++", translateAndConvertCommands);
+        console.debug("+++", translateAndConvertCommands);
 
-        console.log(
+        console.debug(
           "--- " +
             translateAndConvertCommands.cmdConvert +
             " " +
@@ -522,7 +537,7 @@ function respond4GdalProc(req, res, next) {
   //     `-projwin ${minX} ${minY} ${maxX} ${maxY} ` +
   //     `${layers} ` +
   //     `${localConf.tmpFolder + nonce + "out" + ending}`;
-  //   console.log("cmdBefore", cmdBefore);
+  //   console.debug("cmdBefore", cmdBefore);
 
   const cmdArguments = [
     "-projwin",
@@ -572,13 +587,13 @@ async function extractMultipageIfNeeded(docInfos, next, error) {
       if (docPath.indexOf(".multipage/") > -1) {
         // let cmd = 'ls -1 $(dirname "' + docPath + '")/*.tiff | wc -l';
         try {
-          console.log("docPath", docPath);
+          console.debug("docPath", docPath);
           const folder = path.dirname(docPath);
           const fileObjs = fs.readdirSync(folder);
           const tiffs = fileObjs.filter((fo) => fo.endsWith(".tiff"));
           numOfPages = tiffs.length;
         } catch (e) {
-          console.log("error in getNumberOfPages", e);
+          console.warn("error in getNumberOfPages. will setnumPages to 1", e);
           numOfPages = 1;
         }
       } else {
@@ -599,10 +614,10 @@ function extractMultipage(docInfo) {
 
   let imageName = docPath.replace(regexMultiPage, "");
   let multipageDir = localConf.cacheFolder + imageName + ".multipage";
-  console.log("will extractMultipage", { docInfo, multipageDir, imageName });
+  console.debug("will extractMultipage", { docInfo, multipageDir, imageName });
 
   if (!fs.existsSync(multipageDir)) {
-    console.log("multipage folder does not exist will create it", multipageDir);
+    console.debug("multipage folder does not exist will create it", multipageDir);
     fx.mkdirSync(multipageDir);
     let density =
       localConf.dpi != null ? "-density " + localConf.dpi + "x" + localConf.dpi + " " : "";
@@ -612,16 +627,16 @@ function extractMultipage(docInfo) {
     //remove empty strings from array
     const cleanSplitArguments = splitArguments.filter((arg) => arg !== "");
 
-    console.log("splitArguments without empty args:::", cleanSplitArguments);
+    console.debug("splitArguments without empty args:::", cleanSplitArguments);
     try {
       execFileSync("convert", cleanSplitArguments);
     } catch (e) {
-      console.log("error while splitting multipage", e);
+      console.debug("error while splitting multipage", e);
       execFileSync("rm", ["-rf", multipageDir]);
       throw new Error("error while splitting multipage");
     }
   } else {
-    console.log("multipage folder already exists", multipageDir);
+    console.debug("multipage folder already exists", multipageDir);
   }
   return identifyMultipageImage(docInfo);
 }
@@ -699,7 +714,7 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
             fs.symlinkSync("/app/" + docPath, localConf.cacheFolder + docPath);
           }
 
-          console.log("start waiting");
+          console.debug("start waiting");
           let fileExists = false;
           let sleepCycles = 0;
           let sleepInterval = 100;
@@ -714,7 +729,7 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
               continue;
             }
           }
-          console.log("done waiting");
+          console.debug("done waiting");
 
           /*
                     // https://www.daveeddy.com/2013/03/26/synchronous-file-io-in-nodejs/
@@ -736,7 +751,7 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
     }
     next();
   } catch (err) {
-    console.log("error in createWorldFilesIfNeeded", err);
+    console.warn("error in createWorldFilesIfNeeded", err);
 
     error(err);
   }
@@ -962,11 +977,11 @@ function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
   }
 
   //   const intermediateFiles = fs.readdirSync(localConf.tmpFolder).filter((fn) => {
-  //     console.log("check for " + "all.parts.resized" + nonce, fn);
+  //     console.debug("check for " + "all.parts.resized" + nonce, fn);
 
   //     return fn.startsWith("all.parts.resized" + nonce + "_");
   //   });
-  //   console.log(
+  //   console.debug(
   //     "intermediateFiles xxxx " + localConf.tmpFolder + "all.parts.resized" + nonce + "*" + " xxxxxx",
   //     intermediateFiles
   //   );
@@ -1203,6 +1218,6 @@ if (globalConf.gdalProcessorCoreActive === true) {
 }
 
 server.pre(restify.pre.userAgentConnection());
-console.log("Listening on port:" + globalConf.port);
+console.info("Listening on port:" + globalConf.port);
 
 server.listen(globalConf.port, globalConf.host);
