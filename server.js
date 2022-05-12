@@ -611,10 +611,12 @@ function extractMultipage(docInfo) {
     let splitPagesCmd = "convert " + density + imageName + " " + multipageDir + "/%d.tiff";
     const splitArguments = ["-quiet", density, imageName, multipageDir + "/%d.tiff"];
 
-    console.log("splitArguments:::", splitArguments);
+    //remove empty strings from array
+    const cleanSplitArguments = splitArguments.filter((arg) => arg !== "");
+
+    console.log("splitArguments without empty args:::", cleanSplitArguments);
     try {
-      //execFileSync("/usr/bin/convert", splitArguments, { cwd: "/app" });
-      execSync(splitPagesCmd); //TODO Vulnarable to injection
+      execFileSync("convert", cleanSplitArguments);
     } catch (e) {
       console.log("error while splitting multipage", e);
       execFileSync("rm", ["-rf", multipageDir]);
