@@ -22,13 +22,6 @@ const extConf = require("./config.json");
 const corsMiddleware = require("restify-cors-middleware");
 
 const fs = require("fs");
-if (extConf.customExtensions !== undefined) {
-  var customExtensions = require(extConf.customExtensions);
-
-  console.debug("custom extensions loaded", extConf.customExtensions);
-} else {
-  console.debug("no custom extensions loaded");
-}
 
 let defaultConf = {
   port: 8081,
@@ -64,6 +57,14 @@ if (globalConf.warningLogs === false) {
 }
 if (globalConf.errorLogs === false) {
   console.error = () => {};
+}
+
+if (extConf.customExtensions !== undefined) {
+  var customExtensions = require(extConf.customExtensions);
+
+  console.debug("custom extensions loaded", extConf.customExtensions);
+} else {
+  console.debug("no custom extensions loaded");
 }
 
 var globalDirConfs = {};
