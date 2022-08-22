@@ -622,7 +622,15 @@ function extractMultipage(docInfo) {
     let density =
       localConf.dpi != null ? "-density " + localConf.dpi + "x" + localConf.dpi + " " : "";
     let splitPagesCmd = "convert " + density + imageName + " " + multipageDir + "/%d.tiff";
-    const splitArguments = ["-quiet", density, imageName, multipageDir + "/%d.tiff"];
+    let densitySwitch = localConf.dpi != null ? "-density" : "";
+    let densityValue = localConf.dpi != null ? localConf.dpi + "x" + localConf.dpi : "";
+    const splitArguments = [
+      "-quiet",
+      densitySwitch,
+      densityValue,
+      imageName,
+      multipageDir + "/%d.tiff",
+    ];
 
     //remove empty strings from array
     const cleanSplitArguments = splitArguments.filter((arg) => arg !== "");
