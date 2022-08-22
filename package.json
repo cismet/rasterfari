@@ -3,7 +3,7 @@
   "config": {
     "dockerRegistryPath": "cismet"
   },
-  "version": "22.5.3",
+  "version": "22.8.0",
   "keywords": [
     "raster",
     "documents",
