@@ -11,10 +11,17 @@ services:
     volumes:
       - ./config.json:/app/config.json:ro
       - ./dirConfigs.json:/app/dirConfigs.json:ro
-      - ./docs:/app/docs:ro
+      #- ./docs:/app/docs:ro
       - ./policy.xml:/etc/ImageMagick-6/policy.xml:ro
       - ./tmp:/app/tmp
       - ./cache:/app/cache
+
+      - ./docs/bplaene:/app/bplaene:ro
+      - ./docs/vermessungsregister:/app/vermessungsregister:ro
+      - ./docs/Baulasten:/app/Baulasten:ro
+      - ./docs/baulasten_rs:/app/docs:ro
+      - ./docs/qsgeb:/app/qsgeb:ro
+
       ## use this only in dev
       - ./package.json:/app/package.json
       - ./custom.js:/app/custom.js
@@ -24,6 +31,6 @@ services:
     restart: always
     ## the default command will run rasterfari with 20 threads
 
-    command: "yarn run production-run"
-    #command: /bin/bash -c "sleep infinity"
+    # command: "yarn run production-run"
+    command: /bin/bash -c "sleep infinity"
     #command: "yarn start"
