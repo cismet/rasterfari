@@ -20,7 +20,7 @@
   "author": "helllth",
   "contributors": [],
   "dependencies": {
-    "async": "^2.6.0",
+    "async": "^2.6.4",
     "file-type": "^10.0.0",
     "mkdir-recursive": "^0.4.0",
     "read-chunk": "^3.0.0",
