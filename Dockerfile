@@ -5,7 +5,7 @@
 FROM geographica/gdal2:2.3.2
 
 RUN apt-get update --fix-missing
-RUN apt-get install -y curl imagemagick locales poppler-utils vim
+RUN apt-get install -y curl locales poppler-utils vim checkinstall libwebp-dev libopenjp2-7-dev libtiff-dev libdjvulibre-dev libopenexr-dev libjbig-dev librsvg2-dev libltdl-dev libde265-dev
 
 #locales
 
@@ -20,14 +20,25 @@ ENV TZ Europe/Berlin
 
 RUN locale-gen --purge
 
+# ImageMagick with openj2 support
+
+ADD https://imagemagick.org/archive/ImageMagick-6.9.12-72.tar.gz /tmp
+#ADD https://www.imagemagick.org/download/ImageMagick.tar.gz /tmp
+RUN tar xzvf /tmp/ImageMagick-6.9.12-72.tar.gz -C /tmp/ && \
+    cd /tmp/ImageMagick-6.9.12-72 && \
+    ./configure --enable-shared --with-modules --with-gslib && \
+    make && \
+    make install && \
+    ldconfig /usr/local/lib && \
+    identify -version
+
 RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
 RUN echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list
 
 RUN apt -y install curl dirmngr apt-transport-https lsb-release ca-certificates
-RUN curl -sL https://deb.nodesource.com/setup_12.x | bash -
+RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
 
 RUN apt -y install nodejs
-
 
 RUN apt-get update -y 
 RUN apt-get install -y yarn

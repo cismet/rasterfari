@@ -1,9 +1,10 @@
-version: "2"
+version: "3"
 
 services:
   rasterfari:
     container_name: rasterfari
-    image: cismet/rasterfari-wms:latest
+    image: cismet/rasterfari-wms:build    
+    build: .
     network_mode: bridge
     ports:
       - 8081:8081
