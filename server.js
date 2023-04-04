@@ -150,7 +150,7 @@ const regExSRS = new RegExp(/^EPSG:\d+$/);
 // fill the checks reg exs with the samme keys as in the parameter object
 const sanityRegExs = {};
 sanityRegExs.layers = new RegExp(
-  /^(([\w|.])+(\/([\w\.+-])*)*(\[\d+\])*)(,(([\w|.])+(\/([\w\.-])*)*(\[\d+\])*))*$/
+  /^(([\w|.| ])+(\/([\w\. +-])*)*(\[\d+\])*)(,(([\w|.| ])+(\/([\w\. -])*)*(\[\d+\])*))*$/
 ); //basically everything is allowed
 //integer
 sanityRegExs.width = regExInt;
