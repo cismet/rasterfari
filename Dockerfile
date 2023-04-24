@@ -2,10 +2,10 @@
 #   - builds the frontend app (Vue, React, Webpack, ...)
 
 # Use an official node image
-FROM geographica/gdal2:2.3.2
+FROM geographica/gdal2:2.4.3
 
 RUN apt-get update --fix-missing
-RUN apt-get install -y curl locales poppler-utils vim checkinstall libwebp-dev libopenjp2-7-dev libtiff-dev libdjvulibre-dev libopenexr-dev libjbig-dev librsvg2-dev libltdl-dev libde265-dev
+RUN apt-get install -y curl locales ghostscript poppler-utils vim checkinstall libwebp-dev libopenjp2-7-dev libtiff-dev libdjvulibre-dev libopenexr-dev libjbig-dev librsvg2-dev libltdl-dev libde265-dev
 
 #locales
 
@@ -23,6 +23,7 @@ RUN locale-gen --purge
 # ImageMagick with openj2 support
 
 ADD https://imagemagick.org/archive/releases/ImageMagick-6.9.12-85.tar.gz /tmp
+#ADD https://www.imagemagick.org/download/ImageMagick.tar.gz /tmp
 RUN tar xzvf /tmp/ImageMagick-6.9.12-85.tar.gz -C /tmp/ && \
     cd /tmp/ImageMagick-6.9.12-85 && \
     ./configure --enable-shared --with-modules --with-gslib && \
