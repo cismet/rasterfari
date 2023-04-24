@@ -22,10 +22,9 @@ RUN locale-gen --purge
 
 # ImageMagick with openj2 support
 
-ADD https://imagemagick.org/archive/ImageMagick-6.9.12-72.tar.gz /tmp
-#ADD https://www.imagemagick.org/download/ImageMagick.tar.gz /tmp
-RUN tar xzvf /tmp/ImageMagick-6.9.12-72.tar.gz -C /tmp/ && \
-    cd /tmp/ImageMagick-6.9.12-72 && \
+ADD https://imagemagick.org/archive/releases/ImageMagick-6.9.12-85.tar.gz /tmp
+RUN tar xzvf /tmp/ImageMagick-6.9.12-85.tar.gz -C /tmp/ && \
+    cd /tmp/ImageMagick-6.9.12-85 && \
     ./configure --enable-shared --with-modules --with-gslib && \
     make && \
     make install && \
