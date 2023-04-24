@@ -73,6 +73,6 @@
   <!-- disable ghostscript format types -->
   <policy domain="coder" rights="none" pattern="PS" />
   <policy domain="coder" rights="none" pattern="EPI" />
-  <!--  <policy domain="coder" rights="none" pattern="PDF" />-->
+  <policy domain="coder" rights="none" pattern="PDF" />
   <policy domain="coder" rights="none" pattern="XPS" />
 </policymap>
