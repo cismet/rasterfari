@@ -32,6 +32,4 @@ services:
     restart: always
     ## the default command will run rasterfari with 20 threads
 
-    # command: "yarn run production-run"
-    command: /bin/bash -c "sleep infinity"
-    #command: "yarn start"
+    command: "yarn run production-run"
