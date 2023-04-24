@@ -144,6 +144,7 @@ const regexMultiPage = /\[\d+\]$/; //not used for sanity checks
 // parameter sanity checks regexs for reuse
 const regExInt = new RegExp(/^(\d+)$/);
 const regExFloat = new RegExp(/^-?\d*(\.\d+)?$/);
+const regExBoolean = new RegExp(/^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|0|1)$/);
 const regExContentType = new RegExp(/^(.*)\/.(.*)$/);
 const regExSRS = new RegExp(/^EPSG:\d+$/);
 
@@ -166,6 +167,7 @@ sanityRegExs.maxX = regExFloat;
 sanityRegExs.maxY = regExFloat;
 
 sanityRegExs.format = regExContentType;
+sanityRegExs.transparent = regExBoolean;
 sanityRegExs.srs = regExSRS;
 sanityRegExs.srcSrs = regExSRS;
 
@@ -213,11 +215,13 @@ function extractParamsFromRequest(req) {
   let service = req.query.SERVICE || req.query.service || req.query.Service || "WMS";
   let request = req.query.REQUEST || req.query.request || req.query.Request || "GetMap";
   let format = req.query.FORMAT || req.query.format || req.query.Format || "image/png";
+  let transparent = req.query.TRANSPARENT || req.query.transparent || req.query.Transparent || "true";
 
   const params = {
     service,
     request,
     format,
+    transparent,
     layers,
     width,
     height,
@@ -231,7 +235,7 @@ function extractParamsFromRequest(req) {
   };
   console.debug(params);
   sanityCheck(params, sanityRegExs);
-
+  params.transparent = !("0" == transparent || "false" == transparent.toLowerCase());
   return params;
 }
 
@@ -246,7 +250,7 @@ function respond(req, res, next) {
     res.end("Bad Request :-/ \n\nHave a look at the logs.");
     return;
   }
-  let { layers, width, height, minX, minY, maxX, maxY, srs, customDocumentInfo } = params;
+  let { layers, transparent, width, height, minX, minY, maxX, maxY, srs, customDocumentInfo } = params;
   let docInfos = getDocInfosFromLayers(layers);
   let docInfo = docInfos[0];
   let docPath = docInfo.path;
@@ -350,7 +354,8 @@ function respond(req, res, next) {
                 minX,
                 minY,
                 maxX,
-                maxY
+                maxY,
+                transparent
               );
 
               console.debug("translateAndConvertCommands:::", translateAndConvertCommands);
@@ -621,8 +626,7 @@ function extractMultipage(docInfo) {
     fx.mkdirSync(multipageDir);
     let density =
       localConf.dpi != null ? "-density " + localConf.dpi + "x" + localConf.dpi + " " : "";
-    let splitPagesCmd = "convert " + density + imageName + " " + multipageDir + "/%d.tiff";
-    let densitySwitch = localConf.dpi != null ? "-density" : "";
+   let densitySwitch = localConf.dpi != null ? "-density" : "";
     let densityValue = localConf.dpi != null ? localConf.dpi + "x" + localConf.dpi : "";
     const splitArguments = [
       "-quiet",
@@ -828,7 +832,7 @@ function getVrtCommand(docInfos, nonce, srs, minx, miny, maxx, maxy, width, heig
 
   let doclist = "";
   for (var i = 0; i < docInfos.length; i++) {
-    doclist = doclist + docInfos[i].path + " ";
+    doclist = doclist + "\"" + docInfos[i].path + "\" ";
   }
   if (localConf.sourceSRS === srs) {
     // const cmdBefore =
@@ -1030,7 +1034,7 @@ function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
   };
 }
 
-function getTranslateAndConvertCommands(docInfo, nonce, width, height, minx, miny, maxx, maxy) {
+function getTranslateAndConvertCommands(docInfo, nonce, width, height, minx, miny, maxx, maxy, transparent) {
   let localConf = getConf(docInfo);
   let docPath = docInfo.path;
 
@@ -1090,14 +1094,14 @@ function getTranslateAndConvertCommands(docInfo, nonce, width, height, minx, min
       miny,
       "-of",
       "png",
-      docPath,
+      "'" + docPath + "'",
       localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png",
     ]
   );
 
   const convertArguments = [
-    "-background",
-    "none",
+    transparent == true ? "-background" : "-alpha",
+    transparent == true ? "none" : "remove",
     localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png",
     "PNG32:" + localConf.tmpFolder + "all.parts.resized" + nonce + ".png",
   ];
