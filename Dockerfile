@@ -60,6 +60,7 @@ WORKDIR /app
 
 # copy example docs
 COPY ./exampleDocs ./exampleDocs/
+COPY ./policy.xml /etc/ImageMagick-6/policy.xml
 
 # Install dependencies
 COPY package*.json ./
