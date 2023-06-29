@@ -985,7 +985,7 @@ function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
   const translateArguments = [];
 
   if (localConf.nodata_color) {
-    translateArguments.push("-a_nodata", "'" + localConf.nodata_color + "'");
+    translateArguments.push("-expand", "rgb", "-a_nodata", "'" + localConf.nodata_color + "'");
   }
 
   //   const intermediateFiles = fs.readdirSync(localConf.tmpFolder).filter((fn) => {
@@ -1076,7 +1076,7 @@ function getTranslateAndConvertCommands(docInfo, nonce, width, height, minx, min
   //     ".png ";
   const translateArguments = [];
   if (localConf.nodata_color) {
-    translateArguments.push("-a_nodata", "'" + localConf.nodata_color + "'");
+    translateArguments.push("-expand", "rgb", "-a_nodata", "'" + localConf.nodata_color + "'");
   }
   translateArguments.push(
     ...[
