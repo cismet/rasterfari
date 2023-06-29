@@ -537,13 +537,6 @@ function respond4GdalProc(req, res, next) {
     ending = "." + format.split("/")[1];
   }
 
-  //   const cmdBefore =
-  //     `gdal_translate ` +
-  //     `-projwin ${minX} ${minY} ${maxX} ${maxY} ` +
-  //     `${layers} ` +
-  //     `${localConf.tmpFolder + nonce + "out" + ending}`;
-  //   console.debug("cmdBefore", cmdBefore);
-
   const cmdArguments = [
     "-projwin",
     minX,
@@ -573,16 +566,7 @@ async function extractMultipageIfNeeded(docInfos, next, error) {
       if (regexMultiPage.test(docPath)) {
         docPath = extractMultipage(docInfo);
       } else {
-        //let buffer = readChunk.sync(doc, 0, 4100);
-        //let type = fileType(buffer).ext;
-        //if (type === "pdf") {
-        //let numOfPages = String(execSync("pdfinfo " + doc + " | grep -a Pages: | awk '{print $2}'"));
-        //if (numOfPages > 1) {
-        docPath = extractMultipage(docInfo);
-        //}
-        //} else {
-        // multipage tiff ?? (TODO)
-        //}
+        docPath = extractMultipage(docInfo);        
       }
 
       docInfo.path = docPath;
@@ -742,19 +726,6 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
             }
           }
           console.debug("done waiting");
-
-          /*
-                    // https://www.daveeddy.com/2013/03/26/synchronous-file-io-in-nodejs/
-                    fs.appendFile(worldFile,
-                        worldFileData.xScale + '\n' +
-                        worldFileData.ySkew + '\n' +
-                        worldFileData.xSkew + '\n' +
-                        worldFileData.yScale + '\n' +
-                        worldFileData.x + '\n' +
-                        worldFileData.y + '\n' +
-                        ''
-                    );
-                    */
         }
         if (!docPath.startsWith(localConf.cacheFolder)) {
           docInfos[i] = localConf.cacheFolder + docPath;
@@ -835,25 +806,6 @@ function getVrtCommand(docInfos, nonce, srs, minx, miny, maxx, maxy, width, heig
     doclist = doclist + "\"" + docInfos[i].path + "\" ";
   }
   if (localConf.sourceSRS === srs) {
-    // const cmdBefore =
-    //   "gdalbuildvrt " +
-    //   (localConf.nodata_color ? "-srcnodata '" + localConf.nodata_color + "' " : "") +
-    //   "-r average -overwrite " +
-    //   "-te " +
-    //   minx +
-    //   " " +
-    //   miny +
-    //   " " +
-    //   maxx +
-    //   " " +
-    //   maxy +
-    //   " " +
-    //   localConf.tmpFolder +
-    //   "all.parts.resized" +
-    //   nonce +
-    //   ".vrt " +
-    //   doclist;
-
     const cmdArguments = [];
     if (localConf.nodata_color) {
       cmdArguments.push("-srcnodata", "'" + localConf.nodata_color + "'");
@@ -877,42 +829,6 @@ function getVrtCommand(docInfos, nonce, srs, minx, miny, maxx, maxy, width, heig
     );
     return { cmd: "gdalbuildvrt", cmdArguments };
   } else {
-    // let cmdBefore =
-    //   "gdalwarp " +
-    //   (localConf.nodata_color ? "-srcnodata '" + localConf.nodata_color + "' " : "") +
-    //   "-dstalpha " +
-    //   "-r " +
-    //   localConf.interpolation +
-    //   " " +
-    //   "-overwrite " +
-    //   "-s_srs " +
-    //   localConf.sourceSRS +
-    //   " " +
-    //   "-te " +
-    //   minx +
-    //   " " +
-    //   miny +
-    //   " " +
-    //   maxx +
-    //   " " +
-    //   maxy +
-    //   " " +
-    //   "-t_srs " +
-    //   srs +
-    //   " " +
-    //   "-ts " +
-    //   width +
-    //   " " +
-    //   height +
-    //   " " +
-    //   "-of GTiff " +
-    //   doclist +
-    //   " " +
-    //   localConf.tmpFolder +
-    //   "all.parts.resized" +
-    //   nonce +
-    //   ".tif ";
-
     const cmdArguments = [];
     if (localConf.nodata_color) {
       cmdArguments.push("-srcnodata", "'" + localConf.nodata_color + "'");
@@ -952,51 +868,11 @@ function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
   let localConf = getConf(docInfo);
   let docInfo = docInfos[0];
 
-  //   const cmdbefore =
-  //     "gdal_translate " +
-  //     (localConf.nodata_color ? "-a_nodata '" + localConf.nodata_color + "' " : "") +
-  //     "-q " +
-  //     "-outsize " +
-  //     width +
-  //     " " +
-  //     height +
-  //     " " +
-  //     "--config GDAL_PAM_ENABLED NO " +
-  //     "-of png " +
-  //     localConf.tmpFolder +
-  //     "all.parts.resized" +
-  //     nonce +
-  //     ".* " +
-  //     localConf.tmpFolder +
-  //     "all.parts.resized" +
-  //     nonce +
-  //     "intermediate.png " +
-  //     "&& convert -background none " +
-  //     localConf.tmpFolder +
-  //     "all.parts.resized" +
-  //     nonce +
-  //     "intermediate.png " +
-  //     "PNG32:" +
-  //     localConf.tmpFolder +
-  //     "all.parts.resized" +
-  //     nonce +
-  //     ".png ";
-
   const translateArguments = [];
 
   if (localConf.nodata_color) {
     translateArguments.push("-expand", "rgb", "-a_nodata", "'" + localConf.nodata_color + "'");
   }
-
-  //   const intermediateFiles = fs.readdirSync(localConf.tmpFolder).filter((fn) => {
-  //     console.debug("check for " + "all.parts.resized" + nonce, fn);
-
-  //     return fn.startsWith("all.parts.resized" + nonce + "_");
-  //   });
-  //   console.debug(
-  //     "intermediateFiles xxxx " + localConf.tmpFolder + "all.parts.resized" + nonce + "*" + " xxxxxx",
-  //     intermediateFiles
-  //   );
 
   translateArguments.push(
     ...[
@@ -1021,11 +897,6 @@ function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
     localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png",
     "PNG32:" + localConf.tmpFolder + "all.parts.resized" + nonce + ".png",
   ];
-  //   const cmd = `gdal_translate ${shescape.quoteAll(
-  //     translateArguments,
-  //     shescapeOptions
-  //   )} && convert ${shescape.quoteAll(convertArguments, shescapeOptions)}`;
-
   return {
     cmdTranslate: "gdal_translate",
     translateArguments,
@@ -1038,42 +909,6 @@ function getTranslateAndConvertCommands(docInfo, nonce, width, height, minx, min
   let localConf = getConf(docInfo);
   let docPath = docInfo.path;
 
-  //   const cmdBefore =
-  //     "gdal_translate " +
-  //     (localConf.nodata_color ? "-a_nodata '" + localConf.nodata_color + "' " : "") +
-  //     "-q " +
-  //     "-outsize " +
-  //     width +
-  //     " " +
-  //     height +
-  //     " " +
-  //     "--config GDAL_PAM_ENABLED NO " +
-  //     "-projwin " +
-  //     minx +
-  //     " " +
-  //     maxy +
-  //     " " +
-  //     maxx +
-  //     " " +
-  //     miny +
-  //     " " +
-  //     "-of png " +
-  //     docPath +
-  //     " " +
-  //     localConf.tmpFolder +
-  //     "all.parts.resized" +
-  //     nonce +
-  //     "intermediate.png " +
-  //     "&& convert -background none " +
-  //     localConf.tmpFolder +
-  //     "all.parts.resized" +
-  //     nonce +
-  //     "intermediate.png " +
-  //     "PNG32:" +
-  //     localConf.tmpFolder +
-  //     "all.parts.resized" +
-  //     nonce +
-  //     ".png ";
   const translateArguments = [];
   if (localConf.nodata_color) {
     translateArguments.push("-expand", "rgb", "-a_nodata", "'" + localConf.nodata_color + "'");
@@ -1106,10 +941,6 @@ function getTranslateAndConvertCommands(docInfo, nonce, width, height, minx, min
     "PNG32:" + localConf.tmpFolder + "all.parts.resized" + nonce + ".png",
   ];
 
-  //   const cmd = `gdal_translate ${shescape.quoteAll(
-  //     translateArguments,
-  //     shescapeOptions
-  //   )} && convert ${shescape.quoteAll(convertArguments, shescapeOptions)}`;
   return {
     cmdTranslate: "gdal_translate",
     translateArguments,
@@ -1119,13 +950,6 @@ function getTranslateAndConvertCommands(docInfo, nonce, width, height, minx, min
 }
 
 function calculateWorldFileData(imageWidth, imageHeight) {
-  /*  // UPPER LEFT
-        let xul = 0;
-        let yul = 1;
-        let xlr = (imageWidth > imageHeight) ? imageHeight / imageWidth : imageWidth / imageHeight;
-        let ylr = 0;
-    */
-
   // CENTER
   let xul = imageWidth > imageHeight ? -0.5 : imageWidth / imageHeight / -2;
   let yul = imageWidth > imageHeight ? imageHeight / imageWidth / 2 : 0.5;
@@ -1142,65 +966,6 @@ function calculateWorldFileData(imageWidth, imageHeight) {
   return { xScale: xScale, ySkew: ySkew, xSkew: xSkew, yScale: yScale, x: x, y: y };
 }
 
-// this function is not used anymore (commented out to test if there are errors)
-// function createWarpTask(nonce, originalDoc, doclist, srs, minx, miny, maxx, maxy, width, height) {
-//   return function (callback) {
-//     if (conf.speechComments) {
-//       execAsync("say go");
-//     }
-//     var cmd =
-//       "gdalwarp " +
-//       (conf.nodata_color ? "-srcnodata '" + conf.nodata_color + "' " : "") +
-//       "-dstalpha " +
-//       "-r " +
-//       conf.interpolation +
-//       " " +
-//       "-overwrite " +
-//       "-s_srs " +
-//       conf.sourceSRS +
-//       " " +
-//       "-te " +
-//       minx +
-//       " " +
-//       miny +
-//       " " +
-//       maxx +
-//       " " +
-//       maxy +
-//       " " +
-//       "-t_srs " +
-//       srs +
-//       " " +
-//       "-ts " +
-//       width +
-//       " " +
-//       height +
-//       " " +
-//       doclist +
-//       " " +
-//       conf.tmpFolder +
-//       "all.parts.resized" +
-//       nonce +
-//       ".tif ";
-//     log(cmd, nonce);
-//     execAsync(cmd, null, function (error, stdout, stderr) {
-//       if (error) {
-//         if (!conf.tolerantMode) {
-//           callback(new Error("failed getting something:" + error.message));
-//         } else {
-//           log(
-//             "\n\n### There seems to be an error :-/ Will ignore because of the tolerantMode\n" +
-//               error.message,
-//             nonce
-//           );
-//           callback(null, true);
-//         }
-//       } else {
-//         callback(null, true);
-//       }
-//     });
-//   };
-// }
 
 var server = restify.createServer();
 const cors = corsMiddleware({
