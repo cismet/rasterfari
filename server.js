@@ -614,6 +614,7 @@ function extractMultipage(docInfo) {
     let densityValue = localConf.dpi != null ? localConf.dpi + "x" + localConf.dpi : "";
     const splitArguments = [
       "-quiet",
+      "-type", "TrueColor",
       densitySwitch,
       densityValue,
       imageName,
@@ -871,7 +872,7 @@ function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
   const translateArguments = [];
 
   if (localConf.nodata_color) {
-    translateArguments.push("-expand", "rgb", "-a_nodata", "'" + localConf.nodata_color + "'");
+    translateArguments.push("-a_nodata", "'" + localConf.nodata_color + "'");
   }
 
   translateArguments.push(
@@ -892,8 +893,7 @@ function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
   );
 
   const convertArguments = [
-    "-background",
-    "none",
+    "-background", "none",
     localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png",
     "PNG32:" + localConf.tmpFolder + "all.parts.resized" + nonce + ".png",
   ];
@@ -911,7 +911,7 @@ function getTranslateAndConvertCommands(docInfo, nonce, width, height, minx, min
 
   const translateArguments = [];
   if (localConf.nodata_color) {
-    translateArguments.push("-expand", "rgb", "-a_nodata", "'" + localConf.nodata_color + "'");
+    translateArguments.push("-a_nodata", "'" + localConf.nodata_color + "'");
   }
   translateArguments.push(
     ...[
