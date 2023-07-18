@@ -17,7 +17,8 @@ const fx = require("mkdir-recursive");
 const path = require("path");
 const readChunk = require("read-chunk");
 const fileType = require("file-type");
-const sleep = (ms) => spawnSync(process.argv[0], ["-e", "setTimeout(function(){}," + ms + ")"]);
+const sleep = (ms) =>
+  spawnSync(process.argv[0], ["-e", "setTimeout(function(){}," + ms + ")"]);
 const extConf = require("./config.json");
 const corsMiddleware = require("restify-cors-middleware");
 
@@ -37,7 +38,10 @@ let defaultConf = {
   interpolation: "average",
   geoTif: true,
   dpi: null,
-  corsAccessControlAllowOrigins: ["http://localhost:*", "https://rasterfari.cismet.de"],
+  corsAccessControlAllowOrigins: [
+    "http://localhost:*",
+    "https://rasterfari.cismet.de",
+  ],
   debugLogs: false,
   infoLogs: true,
   warningLogs: true,
@@ -110,7 +114,11 @@ function getConf(docInfo) {
           chachedLocalDirConfs[dir] = JSON.parse(fs.readFileSync(dirConfFile));
         }
       }
-      dirConf = Object.assign(dirConf, globalDirConfs[dir], chachedLocalDirConfs[dir]);
+      dirConf = Object.assign(
+        dirConf,
+        globalDirConfs[dir],
+        chachedLocalDirConfs[dir]
+      );
     }
   }
   let conf = Object.assign({}, defaultConf, extConf, dirConf);
@@ -128,11 +136,20 @@ function sanityCheck(germs, rules) {
       throw new Error("Sanitizing Error: No rule for " + key);
     } else {
       if (germs[key] !== undefined && !ruleRegex.test(germs[key])) {
-        console.error("sanitizing rule for " + key + ": " + germs[key] + " failed. This is bad");
+        console.error(
+          "sanitizing rule for " +
+            key +
+            ": " +
+            germs[key] +
+            " failed. This is bad"
+        );
         throw new Error("Sanitizing Error: Sanitizer for " + key + " failed");
       } else {
         if (globalConf.sanitizingDebug === true) {
-          console.debug("sanitizing rule for " + key + " passed. This is good", germs[key]);
+          console.debug(
+            "sanitizing rule for " + key + " passed. This is good",
+            germs[key]
+          );
         }
       }
     }
@@ -144,7 +161,9 @@ const regexMultiPage = /\[\d+\]$/; //not used for sanity checks
 // parameter sanity checks regexs for reuse
 const regExInt = new RegExp(/^(\d+)$/);
 const regExFloat = new RegExp(/^-?\d*(\.\d+)?$/);
-const regExBoolean = new RegExp(/^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|0|1)$/);
+const regExBoolean = new RegExp(
+  /^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|0|1)$/
+);
 const regExContentType = new RegExp(/^(.*)\/.(.*)$/);
 const regExSRS = new RegExp(/^EPSG:\d+$/);
 
@@ -171,7 +190,9 @@ sanityRegExs.transparent = regExBoolean;
 sanityRegExs.srs = regExSRS;
 sanityRegExs.srcSrs = regExSRS;
 
-sanityRegExs.bbox = new RegExp(/^(-?\d+(\.\d+)?),(-?\d+(\.\d+)?),(-?\d+(\.\d+)?),(-?\d+(\.\d+)?)$/);
+sanityRegExs.bbox = new RegExp(
+  /^(-?\d+(\.\d+)?),(-?\d+(\.\d+)?),(-?\d+(\.\d+)?),(-?\d+(\.\d+)?)$/
+);
 sanityRegExs.service = new RegExp(/^WMS$/, "i");
 sanityRegExs.request = new RegExp(/^GetMap$|^translate$/, "i");
 sanityRegExs.customDocumentInfo = new RegExp(/^download$/, "i");
@@ -184,16 +205,34 @@ function extractParamsFromRequest(req) {
   var srs = req.query.SRS || req.query.srs;
   var srcSrs = req.query.SRCSRS || req.query.srcsrs;
   let customDocumentInfo =
-    req.query.customDocumentInfo || req.query.CUSTOMDOCUMENTINFO || req.query.customdocumentinfo;
-  let customScale = req.query.customScale || req.query.CUSTOMSCALE || req.query.customscale || "1";
+    req.query.customDocumentInfo ||
+    req.query.CUSTOMDOCUMENTINFO ||
+    req.query.customdocumentinfo;
+  let customScale =
+    req.query.customScale ||
+    req.query.CUSTOMSCALE ||
+    req.query.customscale ||
+    "1";
   let customScaleX =
-    req.query.customScaleX || req.query.CUSTOMSCALEX || req.query.customscalex || customScale;
+    req.query.customScaleX ||
+    req.query.CUSTOMSCALEX ||
+    req.query.customscalex ||
+    customScale;
   let customScaleY =
-    req.query.customScaleY || req.query.CUSTOMSCALEY || req.query.customscaley || customScale;
+    req.query.customScaleY ||
+    req.query.CUSTOMSCALEY ||
+    req.query.customscaley ||
+    customScale;
   let customOffsetX =
-    req.query.customOffsetX || req.query.CUSTOMOFFSETX || req.query.customoffsetx || "0";
+    req.query.customOffsetX ||
+    req.query.CUSTOMOFFSETX ||
+    req.query.customoffsetx ||
+    "0";
   let customOffsetY =
-    req.query.customOffsetX || req.query.CUSTOMOFFSETY || req.query.customoffsety || "0";
+    req.query.customOffsetX ||
+    req.query.CUSTOMOFFSETY ||
+    req.query.customoffsety ||
+    "0";
 
   sanityCheck({ bbox }, sanityRegExs);
 
@@ -212,10 +251,17 @@ function extractParamsFromRequest(req) {
       (parseFloat(sbbox[3].trim()) + parseFloat(customOffsetY.trim())) /
       parseFloat(customScaleY.trim());
   }
-  let service = req.query.SERVICE || req.query.service || req.query.Service || "WMS";
-  let request = req.query.REQUEST || req.query.request || req.query.Request || "GetMap";
-  let format = req.query.FORMAT || req.query.format || req.query.Format || "image/png";
-  let transparent = req.query.TRANSPARENT || req.query.transparent || req.query.Transparent || "true";
+  let service =
+    req.query.SERVICE || req.query.service || req.query.Service || "WMS";
+  let request =
+    req.query.REQUEST || req.query.request || req.query.Request || "GetMap";
+  let format =
+    req.query.FORMAT || req.query.format || req.query.Format || "image/png";
+  let transparent =
+    req.query.TRANSPARENT ||
+    req.query.transparent ||
+    req.query.Transparent ||
+    "true";
 
   const params = {
     service,
@@ -235,7 +281,9 @@ function extractParamsFromRequest(req) {
   };
   console.debug(params);
   sanityCheck(params, sanityRegExs);
-  params.transparent = !("0" == transparent || "false" == transparent.toLowerCase());
+  params.transparent = !(
+    "0" == transparent || "false" == transparent.toLowerCase()
+  );
   return params;
 }
 
@@ -250,17 +298,24 @@ function respond(req, res, next) {
     res.end("Bad Request :-/ \n\nHave a look at the logs.");
     return;
   }
-  let { layers, transparent, width, height, minX, minY, maxX, maxY, srs, customDocumentInfo } = params;
+  let {
+    layers,
+    transparent,
+    width,
+    height,
+    minX,
+    minY,
+    maxX,
+    maxY,
+    srs,
+    customDocumentInfo,
+  } = params;
   let docInfos = getDocInfosFromLayers(layers);
   let docInfo = docInfos[0];
   let docPath = docInfo.path;
   let localConf = getConf(docInfo);
 
-  if (
-    (docInfos.length == 1 && customDocumentInfo === "Download") ||
-    customDocumentInfo === "download" ||
-    customDocumentInfo === "DOWNLOAD"
-  ) {
+  if (docInfos.length == 1 && customDocumentInfo.localCompare("download")) {
     fs.readFile(docPath, (error, data) => {
       if (error) {
         log(error);
@@ -283,7 +338,17 @@ function respond(req, res, next) {
   }
 
   if (localConf.geoTif) {
-    let vrt = getVrtCommand(docInfos, nonce, srs, minX, minY, maxX, maxY, width, height);
+    let vrt = getVrtCommand(
+      docInfos,
+      nonce,
+      srs,
+      minX,
+      minY,
+      maxX,
+      maxY,
+      width,
+      height
+    );
     let translateAndConvertCommandsVrt = getTranslateAndConvertCommandsVrt(
       docInfos,
       nonce,
@@ -297,44 +362,55 @@ function respond(req, res, next) {
 
     console.debug("--- " + vrt.cmd + " " + vrt.cmdArguments.join(" "));
 
-    execFileAsync(vrt.cmd, vrt.cmdArguments, { shell: true }, function (error, stdout, stderr) {
-      if (error) {
-        log(
-          "\n\n###vrt command: There seems to be at least one (conversion) error :-/\n" +
-            error.message,
-          nonce
-        );
-        if (!localConf.keepFilesForDebugging) {
-          execSync(
-            "export GLOBIGNORE=*.log &&  rm " +
-              localConf.tmpFolder +
-              "*" +
-              nonce +
-              "* 2> /dev/null && export GLOBIGNORE="
+    execFileAsync(
+      vrt.cmd,
+      vrt.cmdArguments,
+      { shell: true },
+      function (error, stdout, stderr) {
+        if (error) {
+          log(
+            "\n\n###vrt command: There seems to be at least one (conversion) error :-/\n" +
+              error.message,
+            nonce
           );
-        }
-        return next(
-          new errors.NotFoundError(
-            "02: there was something wrong with the request. the error message from the underlying process is: " +
-              error.message
-          )
-        );
-      } else {
-        try {
-          console.debug("will call execTransAsync");
-          //   console.debug("translateAndConvertCommandsVrt:::", translateAndConvertCommandsVrt);
-
-          execTransAsync(translateAndConvertCommandsVrt, docInfos, nonce, res, next);
-        } catch (error) {
+          if (!localConf.keepFilesForDebugging) {
+            execSync(
+              "export GLOBIGNORE=*.log &&  rm " +
+                localConf.tmpFolder +
+                "*" +
+                nonce +
+                "* 2> /dev/null && export GLOBIGNORE="
+            );
+          }
           return next(
-            new errors.InternalServerError(
-              "03: something went wrong. the error message from the underlying process is: " +
+            new errors.NotFoundError(
+              "02: there was something wrong with the request. the error message from the underlying process is: " +
                 error.message
             )
           );
+        } else {
+          try {
+            console.debug("will call execTransAsync");
+            //   console.debug("translateAndConvertCommandsVrt:::", translateAndConvertCommandsVrt);
+
+            execTransAsync(
+              translateAndConvertCommandsVrt,
+              docInfos,
+              nonce,
+              res,
+              next
+            );
+          } catch (error) {
+            return next(
+              new errors.InternalServerError(
+                "03: something went wrong. the error message from the underlying process is: " +
+                  error.message
+              )
+            );
+          }
         }
       }
-    });
+    );
   } else {
     extractMultipageIfNeeded(
       docInfos,
@@ -358,9 +434,18 @@ function respond(req, res, next) {
                 transparent
               );
 
-              console.debug("translateAndConvertCommands:::", translateAndConvertCommands);
+              console.debug(
+                "translateAndConvertCommands:::",
+                translateAndConvertCommands
+              );
 
-              execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next);
+              execTransAsync(
+                translateAndConvertCommands,
+                docInfos,
+                nonce,
+                res,
+                next
+              );
             }
           },
           (error) => {
@@ -376,7 +461,8 @@ function respond(req, res, next) {
       (error) => {
         return next(
           new errors.InternalServerError(
-            "05: something went wrong. the error message from the underlying process is:" + error
+            "05: something went wrong. the error message from the underlying process is:" +
+              error
           )
         );
       }
@@ -384,7 +470,13 @@ function respond(req, res, next) {
   }
 }
 
-function execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next) {
+function execTransAsync(
+  translateAndConvertCommands,
+  docInfos,
+  nonce,
+  res,
+  next
+) {
   console.debug(
     "--- " +
       translateAndConvertCommands.cmdTranslate +
@@ -401,7 +493,8 @@ function execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next)
       let localConf = getConf(docInfo);
       if (error) {
         log(
-          "\n\n### There seems to be at least one (translation) error  :-/\n" + error.message,
+          "\n\n### There seems to be at least one (translation) error  :-/\n" +
+            error.message,
           nonce
         );
 
@@ -439,7 +532,8 @@ function execTransAsync(translateAndConvertCommands, docInfos, nonce, res, next)
           function (error) {
             if (error) {
               log(
-                "\n\n### There seems to be at least one (converting) error :-/\n" + error.message,
+                "\n\n### There seems to be at least one (converting) error :-/\n" +
+                  error.message,
                 nonce
               );
               if (!localConf.keepFilesForDebugging) {
@@ -524,8 +618,20 @@ function respond4GdalProc(req, res, next) {
     return;
   }
 
-  let { service, request, format, layers, width, height, minX, minY, maxX, maxY, srs, srcSrs } =
-    params;
+  let {
+    service,
+    request,
+    format,
+    layers,
+    width,
+    height,
+    minX,
+    minY,
+    maxX,
+    maxY,
+    srs,
+    srcSrs,
+  } = params;
 
   let docInfos = getDocInfosFromLayers(layers);
   let docInfo = docInfos[0];
@@ -546,17 +652,30 @@ function respond4GdalProc(req, res, next) {
     layers,
     localConf.tmpFolder + nonce + "out" + ending,
   ];
-  execFileAsync("gdal_translate", cmdArguments, { cwd: "/app" }, function (error) {
-    if (error) {
-      log("\n\n### There seems to be at least one (conversion) error :-/\n" + error.message, nonce);
-      res.writeHead(500, { "Content-Type": "text/plain" });
-      res.end("There seems to be at least one (conversion) error :-/ \n\nHave a look at the logs.");
-    } else {
-      let result = fs.readFileSync(localConf.tmpFolder + nonce + "out" + ending);
-      res.writeHead(200, { "Content-Type": format });
-      res.end(result);
+  execFileAsync(
+    "gdal_translate",
+    cmdArguments,
+    { cwd: "/app" },
+    function (error) {
+      if (error) {
+        log(
+          "\n\n### There seems to be at least one (conversion) error :-/\n" +
+            error.message,
+          nonce
+        );
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end(
+          "There seems to be at least one (conversion) error :-/ \n\nHave a look at the logs."
+        );
+      } else {
+        let result = fs.readFileSync(
+          localConf.tmpFolder + nonce + "out" + ending
+        );
+        res.writeHead(200, { "Content-Type": format });
+        res.end(result);
+      }
     }
-  });
+  );
 }
 async function extractMultipageIfNeeded(docInfos, next, error) {
   try {
@@ -566,7 +685,7 @@ async function extractMultipageIfNeeded(docInfos, next, error) {
       if (regexMultiPage.test(docPath)) {
         docPath = extractMultipage(docInfo);
       } else {
-        docPath = extractMultipage(docInfo);        
+        docPath = extractMultipage(docInfo);
       }
 
       docInfo.path = docPath;
@@ -606,15 +725,22 @@ function extractMultipage(docInfo) {
   console.debug("will extractMultipage", { docInfo, multipageDir, imageName });
 
   if (!fs.existsSync(multipageDir)) {
-    console.debug("multipage folder does not exist will create it", multipageDir);
+    console.debug(
+      "multipage folder does not exist will create it",
+      multipageDir
+    );
     fx.mkdirSync(multipageDir);
     let density =
-      localConf.dpi != null ? "-density " + localConf.dpi + "x" + localConf.dpi + " " : "";
-   let densitySwitch = localConf.dpi != null ? "-density" : "";
-    let densityValue = localConf.dpi != null ? localConf.dpi + "x" + localConf.dpi : "";
+      localConf.dpi != null
+        ? "-density " + localConf.dpi + "x" + localConf.dpi + " "
+        : "";
+    let densitySwitch = localConf.dpi != null ? "-density" : "";
+    let densityValue =
+      localConf.dpi != null ? localConf.dpi + "x" + localConf.dpi : "";
     const splitArguments = [
       "-quiet",
-      "-type", "TrueColor",
+      "-type",
+      "TrueColor",
       densitySwitch,
       densityValue,
       imageName,
@@ -662,7 +788,12 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
         worldFileEnding = "gfw";
       }
 
-      let worldFile = docSplit.reverse().slice(1).reverse().concat(worldFileEnding).join(".");
+      let worldFile = docSplit
+        .reverse()
+        .slice(1)
+        .reverse()
+        .concat(worldFileEnding)
+        .join(".");
 
       let imageSize = String(
         execFileSync("identify", ["-ping", "-format", "'%[w]x%[h]'", docPath])
@@ -749,7 +880,9 @@ function identifyMultipageImage(docInfo) {
   let page;
   if (docPath.match(regexMultiPage)) {
     imageName = docPath.replace(regexMultiPage, "");
-    page = parseInt(String(docPath.match(regexMultiPage, "")).replace(/[\[\]]/, ""));
+    page = parseInt(
+      String(docPath.match(regexMultiPage, "")).replace(/[\[\]]/, "")
+    );
   } else {
     imageName = docPath;
     page = 0;
@@ -798,13 +931,23 @@ function getDocPathFromLayerPart(layerPart) {
   }
 }
 
-function getVrtCommand(docInfos, nonce, srs, minx, miny, maxx, maxy, width, height) {
+function getVrtCommand(
+  docInfos,
+  nonce,
+  srs,
+  minx,
+  miny,
+  maxx,
+  maxy,
+  width,
+  height
+) {
   let localConf = getConf(docInfo);
   let docInfo = docInfos[0];
 
   let doclist = "";
   for (var i = 0; i < docInfos.length; i++) {
-    doclist = doclist + "\"" + docInfos[i].path + "\" ";
+    doclist = doclist + '"' + docInfos[i].path + '" ';
   }
   if (localConf.sourceSRS === srs) {
     const cmdArguments = [];
@@ -893,7 +1036,8 @@ function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
   );
 
   const convertArguments = [
-    "-background", "none",
+    "-background",
+    "none",
     localConf.tmpFolder + "all.parts.resized" + nonce + "intermediate.png",
     "PNG32:" + localConf.tmpFolder + "all.parts.resized" + nonce + ".png",
   ];
@@ -905,7 +1049,17 @@ function getTranslateAndConvertCommandsVrt(docInfos, nonce, width, height) {
   };
 }
 
-function getTranslateAndConvertCommands(docInfo, nonce, width, height, minx, miny, maxx, maxy, transparent) {
+function getTranslateAndConvertCommands(
+  docInfo,
+  nonce,
+  width,
+  height,
+  minx,
+  miny,
+  maxx,
+  maxy,
+  transparent
+) {
   let localConf = getConf(docInfo);
   let docPath = docInfo.path;
 
@@ -963,9 +1117,15 @@ function calculateWorldFileData(imageWidth, imageHeight) {
   let x = xul + xScale * 0.5; // x-coordinate of the center of the upper left pixel
   let y = yul + yScale * 0.5; // y-coordinate of the center of the upper left pixel
 
-  return { xScale: xScale, ySkew: ySkew, xSkew: xSkew, yScale: yScale, x: x, y: y };
+  return {
+    xScale: xScale,
+    ySkew: ySkew,
+    xSkew: xSkew,
+    yScale: yScale,
+    x: x,
+    y: y,
+  };
 }
-
 
 var server = restify.createServer();
 const cors = corsMiddleware({
