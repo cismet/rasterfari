@@ -5,24 +5,38 @@ title += "| '__/ _` / __| __/ _  '__| |_ / _` | '__| |" + "\n";
 title += "| | | (_| __  ||  __/ |  |  _| (_| | |  | |" + "\n";
 title += "|_|  __,_|___/_____|_|  |_|  __,_|_|  |_|" + "\n";
 
-const restify = require("restify");
-const errors = require("restify-errors");
-const execSync = require("child_process").execSync;
+import { createServer, plugins, pre } from "restify";
+import { NotFoundError, InternalServerError } from "restify-errors";
+import { execSync } from "child_process";
 // const execAsync = require("child_process").exec;
-const execFileSync = require("child_process").execFileSync;
-const execFileAsync = require("child_process").execFile;
+import { execFileSync } from "child_process";
+import { execFile as execFileAsync } from "child_process";
 //const async = require('async');
-const spawnSync = require("child_process").spawnSync;
-const fx = require("mkdir-recursive");
-const path = require("path");
-const readChunk = require("read-chunk");
-const fileType = require("file-type");
+import { mkdirSync } from "mkdir-recursive";
+import { dirname } from "path";
+import { sync } from "read-chunk";
+import fileType from "file-type";
+import extConf, { customExtensions as _customExtensions } from "./config.json";
+import corsMiddleware from "restify-cors-middleware";
+import { createHash } from "crypto";
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync as _mkdirSync,
+  appendFile,
+  readFile,
+  readdirSync,
+  openSync,
+  writeSync,
+  closeSync,
+  symlinkSync,
+  statSync,
+} from "fs";
+import { spawnSync } from "child_process";
+
 const sleep = (ms) =>
   spawnSync(process.argv[0], ["-e", "setTimeout(function(){}," + ms + ")"]);
-const extConf = require("./config.json");
-const corsMiddleware = require("restify-cors-middleware");
-
-const fs = require("fs");
 
 let defaultConf = {
   port: 8081,
@@ -63,10 +77,10 @@ if (globalConf.errorLogs === false) {
   console.error = () => {};
 }
 
-if (extConf.customExtensions !== undefined) {
-  var customExtensions = require(extConf.customExtensions);
+if (_customExtensions !== undefined) {
+  var customExtensions = require(_customExtensions);
 
-  console.debug("custom extensions loaded", extConf.customExtensions);
+  console.debug("custom extensions loaded", _customExtensions);
 } else {
   console.debug("no custom extensions loaded");
 }
@@ -74,19 +88,19 @@ if (extConf.customExtensions !== undefined) {
 var globalDirConfs = {};
 var chachedLocalDirConfs = {};
 
-if (fs.existsSync("./dirConfigs.json")) {
-  globalDirConfs = JSON.parse(fs.readFileSync("./dirConfigs.json"));
+if (existsSync("./dirConfigs.json")) {
+  globalDirConfs = JSON.parse(readFileSync("./dirConfigs.json"));
 }
 
-if (!fs.existsSync(globalConf.tmpFolder)) {
-  fs.mkdirSync(globalConf.tmpFolder);
+if (!existsSync(globalConf.tmpFolder)) {
+  _mkdirSync(globalConf.tmpFolder);
 }
-if (!fs.existsSync(globalConf.cacheFolder)) {
-  fs.mkdirSync(globalConf.cacheFolder);
+if (!existsSync(globalConf.cacheFolder)) {
+  _mkdirSync(globalConf.cacheFolder);
 }
 
 function log(message, nonce) {
-  fs.appendFile(
+  appendFile(
     globalConf.tmpFolder + "processing_of_" + nonce + ".log",
     message + "\n",
     (error) => {
@@ -102,7 +116,7 @@ function getConf(docInfo) {
   let dirConf = {};
 
   if (docInfo) {
-    let docDir = path.dirname(docInfo.origPath);
+    let docDir = dirname(docInfo.origPath);
     let docSplit = docDir.split("/");
     for (let i = 0; i < docSplit.length; i++) {
       let dir = docSplit.slice(0, i + 1).join("/");
@@ -110,8 +124,8 @@ function getConf(docInfo) {
       //console.debug("CONF " + i + ": " + dirConfFile);
 
       if (chachedLocalDirConfs[dir] === undefined) {
-        if (fs.existsSync(dirConfFile)) {
-          chachedLocalDirConfs[dir] = JSON.parse(fs.readFileSync(dirConfFile));
+        if (existsSync(dirConfFile)) {
+          chachedLocalDirConfs[dir] = JSON.parse(readFileSync(dirConfFile));
         }
       }
       dirConf = Object.assign(
@@ -160,6 +174,7 @@ const regexMultiPage = /\[\d+\]$/; //not used for sanity checks
 
 // parameter sanity checks regexs for reuse
 const regExInt = new RegExp(/^(\d+)$/);
+const regExWord = new RegExp(/^(\w+)$/);
 const regExFloat = new RegExp(/^-?\d*(\.\d+)?$/);
 const regExBoolean = new RegExp(
   /^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|0|1)$/
@@ -187,6 +202,7 @@ sanityRegExs.maxY = regExFloat;
 
 sanityRegExs.format = regExContentType;
 sanityRegExs.transparent = regExBoolean;
+sanityRegExs.rebuildCache = regExWord;
 sanityRegExs.srs = regExSRS;
 sanityRegExs.srcSrs = regExSRS;
 
@@ -262,12 +278,20 @@ function extractParamsFromRequest(req) {
     req.query.transparent ||
     req.query.Transparent ||
     "true";
+  let rebuildCache =
+    req.query.REBUILDCACHE ||
+    req.query.rebuildcache ||
+    req.query.rebuildCache ||
+    req.query.Rebuildcache ||
+    req.query.RebuildCache ||
+    undefined;
 
   const params = {
     service,
     request,
     format,
     transparent,
+    rebuildCache,
     layers,
     width,
     height,
@@ -280,6 +304,7 @@ function extractParamsFromRequest(req) {
     customDocumentInfo,
   };
   console.debug(params);
+
   sanityCheck(params, sanityRegExs);
   params.transparent = !(
     "0" == transparent || "false" == transparent.toLowerCase()
@@ -301,6 +326,7 @@ function respond(req, res, next) {
   let {
     layers,
     transparent,
+    rebuildCache,
     width,
     height,
     minX,
@@ -315,18 +341,22 @@ function respond(req, res, next) {
   let docPath = docInfo.path;
   let localConf = getConf(docInfo);
 
-  if (docInfos.length == 1 && customDocumentInfo.localCompare("download")) {
-    fs.readFile(docPath, (error, data) => {
+  if (
+    docInfos.length == 1 &&
+    customDocumentInfo &&
+    "download".localeCompare(customDocumentInfo.toLowerCase()) === 0
+  ) {
+    readFile(docPath, (error, data) => {
       if (error) {
         log(error);
         return next(
-          new errors.NotFoundError(
+          new NotFoundError(
             "01: there was something wrong with the request. the error message from the underlying process is: " +
               error.message
           )
         );
       } else {
-        let buffer = readChunk.sync(docPath, 0, 4100);
+        let buffer = sync(docPath, 0, 4100);
         if (fileType(buffer) !== null) {
           let mime = fileType(buffer).mime;
           res.writeHead(200, { "Content-Type": mime });
@@ -383,7 +413,7 @@ function respond(req, res, next) {
             );
           }
           return next(
-            new errors.NotFoundError(
+            new NotFoundError(
               "02: there was something wrong with the request. the error message from the underlying process is: " +
                 error.message
             )
@@ -402,7 +432,7 @@ function respond(req, res, next) {
             );
           } catch (error) {
             return next(
-              new errors.InternalServerError(
+              new InternalServerError(
                 "03: something went wrong. the error message from the underlying process is: " +
                   error.message
               )
@@ -414,6 +444,7 @@ function respond(req, res, next) {
   } else {
     extractMultipageIfNeeded(
       docInfos,
+      rebuildCache,
       () => {
         log("### will process " + docInfos.length + " files ", docInfos, nonce);
 
@@ -450,7 +481,7 @@ function respond(req, res, next) {
           },
           (error) => {
             return next(
-              new errors.InternalServerError(
+              new InternalServerError(
                 "04: something went wrong. the error message from the underlying process is:\n" +
                   error.stderr
               )
@@ -460,7 +491,7 @@ function respond(req, res, next) {
       },
       (error) => {
         return next(
-          new errors.InternalServerError(
+          new InternalServerError(
             "05: something went wrong. the error message from the underlying process is:" +
               error
           )
@@ -509,7 +540,7 @@ function execTransAsync(
           );
         }
         return next(
-          new errors.NotFoundError(
+          new NotFoundError(
             "06: there was something wrong with the request. the error message from the underlying process is: " +
               error.message
           )
@@ -547,14 +578,14 @@ function execTransAsync(
                 );
               }
               return next(
-                new errors.NotFoundError(
+                new NotFoundError(
                   "07: there was something wrong with the request. the error message from the underlying process is: " +
                     error.message
                 )
               );
             } else {
               try {
-                let img = fs.readFileSync(
+                let img = readFileSync(
                   localConf.tmpFolder + "all.parts.resized" + nonce + ".png"
                 );
                 let head = {
@@ -568,14 +599,13 @@ function execTransAsync(
                   if (docInfo.currentPage) {
                     head["X-Rasterfari-currentPage"] = docInfo.currentPage;
                   }
-                  if (docInfo.pageHeight) {
-                    head["X-Rasterfari-pageHeight"] = docInfo.pageHeight;
+                  if (docInfo.meta.origSize) {
+                    head["X-Rasterfari-origFileSize"] =
+                      docInfo.meta.origFileSize;
                   }
-                  if (docInfo.pageWidth) {
-                    head["X-Rasterfari-pageWidth"] = docInfo.pageWidth;
-                  }
-                  if (docInfo.fileSize) {
-                    head["X-Rasterfari-fileSize"] = docInfo.fileSize;
+                  if (docInfo.meta.cacheTimestamp) {
+                    head["X-Rasterfari-cacheTimestamp"] =
+                      docInfo.meta.cacheTimestamp;
                   }
                 }
                 res.writeHead(200, head);
@@ -592,7 +622,7 @@ function execTransAsync(
                 return next();
               } catch (error) {
                 return next(
-                  new errors.InternalServerError(
+                  new InternalServerError(
                     "08: something went wrong. the error message from the underlying process is:\n" +
                       error.stderr
                   )
@@ -618,24 +648,10 @@ function respond4GdalProc(req, res, next) {
     return;
   }
 
-  let {
-    service,
-    request,
-    format,
-    layers,
-    width,
-    height,
-    minX,
-    minY,
-    maxX,
-    maxY,
-    srs,
-    srcSrs,
-  } = params;
+  let { format, layers, minX, minY, maxX, maxY } = params;
 
   let docInfos = getDocInfosFromLayers(layers);
   let docInfo = docInfos[0];
-  let docPath = docInfo.path;
   let localConf = getConf(docInfo);
 
   let ending = ".asc";
@@ -668,37 +684,26 @@ function respond4GdalProc(req, res, next) {
           "There seems to be at least one (conversion) error :-/ \n\nHave a look at the logs."
         );
       } else {
-        let result = fs.readFileSync(
-          localConf.tmpFolder + nonce + "out" + ending
-        );
+        let result = readFileSync(localConf.tmpFolder + nonce + "out" + ending);
         res.writeHead(200, { "Content-Type": format });
         res.end(result);
       }
     }
   );
 }
-async function extractMultipageIfNeeded(docInfos, next, error) {
+async function extractMultipageIfNeeded(docInfos, rebuildCache, next, error) {
   try {
     for (let i = 0, l = docInfos.length; i < l; i++) {
       let docInfo = docInfos[i];
-      let docPath = docInfo.path;
-      if (regexMultiPage.test(docPath)) {
-        docPath = extractMultipage(docInfo);
-      } else {
-        docPath = extractMultipage(docInfo);
-      }
-
+      let docPath = extractMultipage(docInfo, rebuildCache);
       docInfo.path = docPath;
 
       let numOfPages;
-
       if (docPath.indexOf(".multipage/") > -1) {
-        // let cmd = 'ls -1 $(dirname "' + docPath + '")/*.tiff | wc -l';
         try {
-          console.debug("docPath", docPath);
-          const folder = path.dirname(docPath);
-          const fileObjs = fs.readdirSync(folder);
-          const tiffs = fileObjs.filter((fo) => fo.endsWith(".tiff"));
+          let folder = dirname(docPath);
+          let fileObjs = readdirSync(folder);
+          let tiffs = fileObjs.filter((fo) => fo.endsWith(".tiff"));
           numOfPages = tiffs.length;
         } catch (e) {
           console.warn("error in getNumberOfPages. will setnumPages to 1", e);
@@ -716,51 +721,122 @@ async function extractMultipageIfNeeded(docInfos, next, error) {
   }
 }
 
-function extractMultipage(docInfo) {
+function extractMultipage(docInfo, rebuildCache) {
   let localConf = getConf(docInfo);
   let docPath = docInfo.path;
 
   let imageName = docPath.replace(regexMultiPage, "");
+  if (!existsSync(imageName)) {
+    throw new Error("image " + imageName + " does not exist");
+  }
+
+  let meta;
   let multipageDir = localConf.cacheFolder + imageName + ".multipage";
-  console.debug("will extractMultipage", { docInfo, multipageDir, imageName });
+  let multipageCacheFile = multipageDir + "/meta.json";
+  let cacheLockFile = localConf.cacheFolder + imageName + ".lock";
 
-  if (!fs.existsSync(multipageDir)) {
-    console.debug(
-      "multipage folder does not exist will create it",
-      multipageDir
-    );
-    fx.mkdirSync(multipageDir);
-    let density =
-      localConf.dpi != null
-        ? "-density " + localConf.dpi + "x" + localConf.dpi + " "
-        : "";
-    let densitySwitch = localConf.dpi != null ? "-density" : "";
-    let densityValue =
-      localConf.dpi != null ? localConf.dpi + "x" + localConf.dpi : "";
-    const splitArguments = [
-      "-quiet",
-      "-type",
-      "TrueColor",
-      densitySwitch,
-      densityValue,
-      imageName,
-      multipageDir + "/%d.tiff",
-    ];
+  if (existsSync(cacheLockFile)) {
+    let cacheLock = readFileSync(cacheLockFile);
+    while (existsSync(cacheLockFile)) {
+      let age = Date.now() - cacheLock;
+      if (age > 60000) {
+        try {
+          execFileSync("rm", [cacheLockFile]);
+        } catch (e) {}
+      }
+      sleep(20);
+    }
+  }
 
-    //remove empty strings from array
-    const cleanSplitArguments = splitArguments.filter((arg) => arg !== "");
+  let metaFileExists = existsSync(multipageCacheFile);
+  if (metaFileExists) {
+    meta = JSON.parse(readFileSync(multipageCacheFile));
+  }
+  let buildCache;
+  if (metaFileExists) {
+    if (
+      rebuildCache &&
+      "forced".localeCompare(rebuildCache.toLowerCase()) === 0
+    ) {
+      buildCache = true;
+    } else if (
+      rebuildCache &&
+      "ifneeded".localeCompare(rebuildCache.toLowerCase()) === 0
+    ) {
+      let hash = createHash("md5")
+        .update(readFileSync(imageName))
+        .digest("hex");
+      buildCache = hash != meta.origFileHash;
+    } else {
+      buildCache = false;
+    }
+  } else {
+    buildCache = true;
+  }
 
-    console.debug("splitArguments without empty args:::", cleanSplitArguments);
+  if (buildCache) {
+    let parentDir = localConf.cacheFolder + dirname(imageName);
+    if (!existsSync(parentDir)) {
+      mkdirSync(parentDir);
+    }
     try {
+      writeFileSync(cacheLockFile, Date.now().toString());
+
+      sleep(1000);
+      if (existsSync(multipageDir)) {
+        console.debug(
+          "multipage dir exists, but no meta.json in it. removing multipage dir",
+          multipageDir
+        );
+
+        execFileSync("rm", ["-rf", multipageDir]);
+      }
+      mkdirSync(multipageDir);
+
+      let stats = statSync(imageName);
+      let hash = createHash("md5")
+        .update(readFileSync(imageName))
+        .digest("hex");
+      meta = {
+        origFile: imageName,
+        origFileHash: hash,
+        origFileSize: stats.size,
+        cacheTimestamp: Date.now(),
+      };
+
+      let densitySwitch = localConf.dpi != null ? "-density" : "";
+      let densityValue =
+        localConf.dpi != null ? localConf.dpi + "x" + localConf.dpi : "";
+      const splitArguments = [
+        "-quiet",
+        "-type",
+        "TrueColor",
+        densitySwitch,
+        densityValue,
+        imageName,
+        multipageDir + "/%d.tiff",
+      ];
+
+      //remove empty strings from array
+      const cleanSplitArguments = splitArguments.filter((arg) => arg !== "");
+
+      console.debug(
+        "splitArguments without empty args:::",
+        cleanSplitArguments
+      );
       execFileSync("convert", cleanSplitArguments);
+      writeFileSync(multipageCacheFile, JSON.stringify(meta));
     } catch (e) {
       console.debug("error while splitting multipage", e);
       execFileSync("rm", ["-rf", multipageDir]);
       throw new Error("error while splitting multipage");
+    } finally {
+      try {
+        execFileSync("rm", [cacheLockFile]);
+      } catch (e) {}
     }
-  } else {
-    console.debug("multipage folder already exists", multipageDir);
   }
+  docInfo.meta = meta;
   return identifyMultipageImage(docInfo);
 }
 
@@ -770,7 +846,7 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
       let docInfo = docInfos[i];
       let docPath = docInfo.path;
       let localConf = getConf(docInfo);
-      if (!fs.existsSync(docPath)) {
+      if (!existsSync(docPath)) {
         continue;
       }
 
@@ -795,29 +871,27 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
         .concat(worldFileEnding)
         .join(".");
 
-      let imageSize = String(
+      let dimensions = String(
         execFileSync("identify", ["-ping", "-format", "'%[w]x%[h]'", docPath])
       );
-      let imageWidth = imageSize.split("x")[0];
-      let imageHeight = imageSize.split("x")[1];
+      let imageWidth = dimensions.split("x")[0];
+      let imageHeight = dimensions.split("x")[1];
 
       //remove leading and trailing quoate characters
       imageWidth = imageWidth.replace(/^['"]+|\s+|\\|\/|['"]+$/g, "");
       imageHeight = imageHeight.replace(/^['"]+|\s+|\\|\/|['"]+$/g, "");
-      docInfo["pageWidth"] = imageWidth;
-      docInfo["pageHeight"] = imageHeight;
 
-      if (!fs.existsSync(worldFile)) {
+      if (!existsSync(worldFile)) {
         let cachedWorldFile = !worldFile.startsWith(localConf.cacheFolder)
           ? localConf.cacheFolder + worldFile
           : worldFile;
 
-        if (!fs.existsSync(cachedWorldFile)) {
-          fx.mkdirSync(path.dirname(cachedWorldFile));
+        if (!existsSync(cachedWorldFile)) {
+          mkdirSync(dirname(cachedWorldFile));
 
           let worldFileData = calculateWorldFileData(imageWidth, imageHeight);
 
-          let fd = fs.openSync(cachedWorldFile, "w");
+          let fd = openSync(cachedWorldFile, "w");
 
           let buffer = Buffer.from(
             worldFileData.xScale +
@@ -835,11 +909,11 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
               ""
           );
 
-          fs.writeSync(fd, buffer, 0, buffer.length, null);
-          fs.closeSync(fd);
+          writeSync(fd, buffer, 0, buffer.length, null);
+          closeSync(fd);
 
           if (!docPath.startsWith(localConf.cacheFolder)) {
-            fs.symlinkSync("/app/" + docPath, localConf.cacheFolder + docPath);
+            symlinkSync("/app/" + docPath, localConf.cacheFolder + docPath);
           }
 
           console.debug("start waiting");
@@ -848,7 +922,7 @@ function createWorldFilesIfNeeded(docInfos, next, error) {
           let sleepInterval = 100;
           let maxSleep = 2000;
           while (!fileExists) {
-            fileExists = fs.existsSync(cachedWorldFile);
+            fileExists = existsSync(cachedWorldFile);
             sleep(sleepInterval);
             if (++sleepCycles * sleepInterval > maxSleep) {
               break;
@@ -901,18 +975,10 @@ function getDocInfosFromLayers(layers) {
   for (var i = 0, l = docPerLayer.length; i < l; i++) {
     let origPath = docPerLayer[i];
     let imageName = origPath.replace(regexMultiPage, "");
-    let fileSizeInBytes;
-    if (fs.existsSync(imageName)) {
-      let stats = fs.statSync(imageName);
-      fileSizeInBytes = stats.size;
-    } else {
-      fileSizeInBytes = -1;
-    }
 
     docInfos[i] = {
       origPath: origPath,
       path: getDocPathFromLayerPart(origPath),
-      fileSize: fileSizeInBytes,
     };
   }
 
@@ -1127,16 +1193,16 @@ function calculateWorldFileData(imageWidth, imageHeight) {
   };
 }
 
-var server = restify.createServer();
+var server = createServer();
 const cors = corsMiddleware({
   origins: globalConf.corsAccessControlAllowOrigins,
 });
 
 server.pre(cors.preflight);
 server.use(cors.actual);
-server.use(restify.plugins.acceptParser(server.acceptable));
-server.use(restify.plugins.queryParser());
-server.use(restify.plugins.bodyParser());
+server.use(plugins.acceptParser(server.acceptable));
+server.use(plugins.queryParser());
+server.use(plugins.bodyParser());
 
 if (globalConf.geoDocWMSCoreActive === true) {
   server.get("/geoDocWMS/", respond);
@@ -1154,7 +1220,7 @@ if (globalConf.gdalProcessorCoreActive === true) {
   server.head("/gdalProcessor/", respond4GdalProc);
 }
 
-server.pre(restify.pre.userAgentConnection());
+server.pre(pre.userAgentConnection());
 console.info("Listening on port:" + globalConf.port);
 
 server.listen(globalConf.port, globalConf.host);
