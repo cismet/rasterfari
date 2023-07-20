@@ -174,7 +174,6 @@ const regexMultiPage = /\[\d+\]$/; //not used for sanity checks
 
 // parameter sanity checks regexs for reuse
 const regExInt = new RegExp(/^(\d+)$/);
-const regExWord = new RegExp(/^(\w+)$/);
 const regExFloat = new RegExp(/^-?\d*(\.\d+)?$/);
 const regExBoolean = new RegExp(
   /^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|0|1)$/
@@ -202,7 +201,7 @@ sanityRegExs.maxY = regExFloat;
 
 sanityRegExs.format = regExContentType;
 sanityRegExs.transparent = regExBoolean;
-sanityRegExs.rebuildCache = regExWord;
+sanityRegExs.rebuildCache = regExBoolean;
 sanityRegExs.srs = regExSRS;
 sanityRegExs.srcSrs = regExSRS;
 
@@ -306,9 +305,11 @@ function extractParamsFromRequest(req) {
   console.debug(params);
 
   sanityCheck(params, sanityRegExs);
-  params.transparent = !(
-    "0" == transparent || "false" == transparent.toLowerCase()
-  );
+  params.transparent = !(/false/i).test(params.transparent);
+  if (params.rebuildCache !== undefined) {
+    params.rebuildCache = !(/false/i).test(params.rebuildCache);
+  }
+  
   return params;
 }
 
@@ -695,8 +696,7 @@ async function extractMultipageIfNeeded(docInfos, rebuildCache, next, error) {
   try {
     for (let i = 0, l = docInfos.length; i < l; i++) {
       let docInfo = docInfos[i];
-      let docPath = extractMultipage(docInfo, rebuildCache);
-      docInfo.path = docPath;
+      docInfo.path = extractMultipage(docInfo, rebuildCache);;
     }
     next();
   } catch (err) {
@@ -737,21 +737,13 @@ function extractMultipage(docInfo, rebuildCache) {
   }
   let buildCache;
   if (metaFileExists) {
-    if (
-      rebuildCache &&
-      "forced".localeCompare(rebuildCache.toLowerCase()) === 0
-    ) {
-      buildCache = true;
-    } else if (
-      rebuildCache &&
-      "ifneeded".localeCompare(rebuildCache.toLowerCase()) === 0
-    ) {
+    if (rebuildCache === undefined) {
       let hash = createHash("md5")
         .update(readFileSync(imageName))
         .digest("hex");
       buildCache = hash != meta.origFileHash;
     } else {
-      buildCache = false;
+      buildCache = rebuildCache;
     }
   } else {
     buildCache = true;
@@ -976,8 +968,6 @@ function getDocInfosFromLayers(layers) {
   let docPerLayer = layers.split(",");
   for (var i = 0, l = docPerLayer.length; i < l; i++) {
     let origPath = docPerLayer[i];
-    let imageName = origPath.replace(regexMultiPage, "");
-
     docInfos[i] = {
       origPath: origPath,
       path: getDocPathFromLayerPart(origPath),
