@@ -593,19 +593,19 @@ function execTransAsync(
                 };
                 if (docInfos.length == 1) {
                   let docInfo = docInfos[0];
-                  if (docInfo.numOfPages) {
-                    head["X-Rasterfari-numOfPages"] = docInfo.numOfPages;
-                  }
                   if (docInfo.currentPage) {
                     head["X-Rasterfari-currentPage"] = docInfo.currentPage;
                   }
-                  if (docInfo.meta.origSize) {
-                    head["X-Rasterfari-origFileSize"] =
-                      docInfo.meta.origFileSize;
+                  if (docInfo.numOfPages) {
+                    head["X-Rasterfari-numOfPages"] = docInfo.numOfPages;
                   }
-                  if (docInfo.meta.cacheTimestamp) {
+                  if (docInfo.origSize) {
+                    head["X-Rasterfari-origFileSize"] =
+                      docInfo.origFileSize;
+                  }
+                  if (docInfo.cacheTimestamp) {
                     head["X-Rasterfari-cacheTimestamp"] =
-                      docInfo.meta.cacheTimestamp;
+                      docInfo.cacheTimestamp;
                   }
                 }
                 res.writeHead(200, head);
@@ -697,23 +697,6 @@ async function extractMultipageIfNeeded(docInfos, rebuildCache, next, error) {
       let docInfo = docInfos[i];
       let docPath = extractMultipage(docInfo, rebuildCache);
       docInfo.path = docPath;
-
-      let numOfPages;
-      if (docPath.indexOf(".multipage/") > -1) {
-        try {
-          let folder = dirname(docPath);
-          let fileObjs = readdirSync(folder);
-          let tiffs = fileObjs.filter((fo) => fo.endsWith(".tiff"));
-          numOfPages = tiffs.length;
-        } catch (e) {
-          console.warn("error in getNumberOfPages. will setnumPages to 1", e);
-          numOfPages = 1;
-        }
-      } else {
-        numOfPages = 1;
-      }
-      docInfo.path = docPath;
-      docInfo.numOfPages = numOfPages;
     }
     next();
   } catch (err) {
@@ -807,7 +790,8 @@ function extractMultipage(docInfo, rebuildCache) {
       let densitySwitch = localConf.dpi != null ? "-density" : "";
       let densityValue =
         localConf.dpi != null ? localConf.dpi + "x" + localConf.dpi : "";
-      const splitArguments = [
+
+        const splitArguments = [
         "-quiet",
         "-type",
         "TrueColor",
@@ -825,6 +809,23 @@ function extractMultipage(docInfo, rebuildCache) {
         cleanSplitArguments
       );
       execFileSync("convert", cleanSplitArguments);
+
+      let numOfPages;
+      if (docPath.indexOf(".multipage/") > -1) {
+        try {
+          let folder = dirname(docPath);
+          let fileObjs = readdirSync(folder);
+          let tiffs = fileObjs.filter((fo) => fo.endsWith(".tiff"));
+          numOfPages = tiffs.length;
+        } catch (e) {
+          console.warn("error in getNumberOfPages. will setnumPages to 1", e);
+          numOfPages = 1;
+        }
+      } else {
+        numOfPages = 1;
+      }
+      meta.numOfPages = numOfPages;
+
       writeFileSync(multipageCacheFile, JSON.stringify(meta));
     } catch (e) {
       console.debug("error while splitting multipage", e);
@@ -836,7 +837,8 @@ function extractMultipage(docInfo, rebuildCache) {
       } catch (e) {}
     }
   }
-  docInfo.meta = meta;
+
+  Object.assign(docInfo, meta);
   return identifyMultipageImage(docInfo);
 }
 
