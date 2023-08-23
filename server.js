@@ -443,7 +443,6 @@ function respond(req, res, next) {
       }
     );
   } else {
-    //let time
     extractMultipageIfNeeded(
       docInfos,
       rebuildCache,
@@ -786,8 +785,8 @@ function extractMultipage(docInfo, rebuildCache) {
 
         const splitArguments = [
         "-quiet",
-        "-type",
-        "TrueColor",
+        "-type", "TrueColor",
+        "-auto-orient",
         densitySwitch,
         densityValue,
         imageName,

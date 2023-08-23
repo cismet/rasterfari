@@ -17,15 +17,16 @@ ENV LANG ${LOCALE}.${ENCODING}
 ENV LANGUAGE ${LOCALE}.${ENCODING}
 ENV LC_ALL ${LOCALE}.${ENCODING}
 ENV TZ Europe/Berlin
+ENV IMAGEMAGICK_VERION 6.9.12-93
 
 RUN locale-gen --purge
 
 # ImageMagick with openj2 support
 
-ADD https://imagemagick.org/archive/releases/ImageMagick-6.9.12-85.tar.gz /tmp
+ADD https://imagemagick.org/archive/releases/ImageMagick-${IMAGEMAGICK_VERION}.tar.gz /tmp
 #ADD https://www.imagemagick.org/download/ImageMagick.tar.gz /tmp
-RUN tar xzvf /tmp/ImageMagick-6.9.12-85.tar.gz -C /tmp/ && \
-    cd /tmp/ImageMagick-6.9.12-85 && \
+RUN tar xzvf /tmp/ImageMagick-${IMAGEMAGICK_VERION}.tar.gz -C /tmp/ && \
+    cd /tmp/ImageMagick-${IMAGEMAGICK_VERION} && \
     ./configure --enable-shared --with-modules --with-gslib && \
     make && \
     make install && \
