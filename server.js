@@ -176,7 +176,7 @@ const regexMultiPage = /\[\d+\]$/; //not used for sanity checks
 const regExInt = new RegExp(/^(\d+)$/);
 const regExFloat = new RegExp(/^-?\d*(\.\d+)?$/);
 const regExBoolean = new RegExp(
-  /^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|0|1)$/
+  /^([Tt][Rr][Uu][Ee]|[Nn][Oo]|[Yy][Ee][Ss]|[Ff][Aa][Ll][Ss][Ee]|0|1)$/
 );
 const regExContentType = new RegExp(/^(.*)\/.(.*)$/);
 const regExSRS = new RegExp(/^EPSG:\d+$/);
@@ -305,9 +305,9 @@ function extractParamsFromRequest(req) {
   console.debug(params);
 
   sanityCheck(params, sanityRegExs);
-  params.transparent = !(/false/i).test(params.transparent);
+  params.transparent = !(/false|no/i).test(params.transparent);
   if (params.rebuildCache !== undefined) {
-    params.rebuildCache = !(/false/i).test(params.rebuildCache);
+    params.rebuildCache = !(/false|no/i).test(params.rebuildCache);
   }
   
   return params;
@@ -443,6 +443,7 @@ function respond(req, res, next) {
       }
     );
   } else {
+    //let time
     extractMultipageIfNeeded(
       docInfos,
       rebuildCache,
@@ -803,17 +804,12 @@ function extractMultipage(docInfo, rebuildCache) {
       execFileSync("convert", cleanSplitArguments);
 
       let numOfPages;
-      if (docPath.indexOf(".multipage/") > -1) {
-        try {
-          let folder = dirname(docPath);
-          let fileObjs = readdirSync(folder);
-          let tiffs = fileObjs.filter((fo) => fo.endsWith(".tiff"));
-          numOfPages = tiffs.length;
-        } catch (e) {
-          console.warn("error in getNumberOfPages. will setnumPages to 1", e);
-          numOfPages = 1;
-        }
-      } else {
+      try {
+        let fileObjs = readdirSync(multipageDir);
+        let tiffs = fileObjs.filter((fo) => fo.endsWith(".tiff"));
+        numOfPages = tiffs.length;
+      } catch (e) {
+        console.warn("error in getNumberOfPages. will setnumPages to 1", e);
         numOfPages = 1;
       }
       meta.numOfPages = numOfPages;
